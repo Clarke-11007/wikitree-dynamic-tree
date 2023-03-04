@@ -63,6 +63,10 @@ main {
   margin: 0;
 }
 
+#settingsDIV > ul > li {
+  cursor: pointer;
+}
+
 #view-select {
   border-radius: 5px;
   border: 3px solid #ddd;
