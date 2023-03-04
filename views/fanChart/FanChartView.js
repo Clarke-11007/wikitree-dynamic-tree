@@ -719,20 +719,20 @@
         // Setup the Button Bar --> Initial version will use mostly text links, but should be replaced with icons - ideally images that have a highlighted / unhighlighted version, where appropriate
         var btnBarHTML =
             '<div id=btnBarDIV><table border=0 style="background-color: #f8a51d80;" width="100%"><tr>' +
-            '<td width="30%" style="padding-left:10px;"><A onclick="FanChartView.maxAngle = 360; FanChartView.redraw();"><img height=20px src="https://apps.wikitree.com/apps/clarke11007/pix/fan360.png" /></A> |' +
-            ' <A onclick="FanChartView.maxAngle = 240; FanChartView.redraw();"><img height=20px src="https://apps.wikitree.com/apps/clarke11007/pix/fan240.png" /></A> |' +
-            ' <A onclick="FanChartView.maxAngle = 180; FanChartView.redraw();"><img height=20px src="https://apps.wikitree.com/apps/clarke11007/pix/fan180.png" /></A></td>' +
+            '<td width="30%" style="padding-left:10px;"><A style="cursor:pointer;" onclick="FanChartView.maxAngle = 360; FanChartView.redraw();"><img height=20px src="https://apps.wikitree.com/apps/clarke11007/pix/fan360.png" /></A> |' +
+            ' <A style="cursor:pointer;" onclick="FanChartView.maxAngle = 240; FanChartView.redraw();"><img height=20px src="https://apps.wikitree.com/apps/clarke11007/pix/fan240.png" /></A> |' +
+            ' <A style="cursor:pointer;" onclick="FanChartView.maxAngle = 180; FanChartView.redraw();"><img height=20px src="https://apps.wikitree.com/apps/clarke11007/pix/fan180.png" /></A></td>' +
             '<td width="5%">&nbsp;' +
-            '<span id=legendASCII style="display:none;"><A onclick="FanChartView.toggleLegend();"><font size=+2>' + LEGEND_CLIPBOARD + "</font></A></span>" +
+            '<span id=legendASCII style="display:none;"><A style="cursor:pointer;" onclick="FanChartView.toggleLegend();"><font size=+2>' + LEGEND_CLIPBOARD + "</font></A></span>" +
             '</td>' +
             '<td width="30%" align="center">' +
-            ' <A onclick="FanChartView.numGens2Display -=1; FanChartView.redraw();"> -1 </A> ' +
+            ' <A style="cursor:pointer;" onclick="FanChartView.numGens2Display -=1; FanChartView.redraw();"> -1 </A> ' +
             "[ <span id=numGensInBBar>5</span> generations ]" +
-            ' <A onclick="FanChartView.numGens2Display +=1; FanChartView.redraw();"> +1 </A> ' +
+            ' <A style="cursor:pointer;" onclick="FanChartView.numGens2Display +=1; FanChartView.redraw();"> +1 </A> ' +
             "</td>" +
             '<td width="5%">&nbsp;</td>' +
             '<td width="30%" align="right"  style="padding-right:10px;">' +
-            ' <A onclick="FanChartView.toggleSettings();"><font size=+2>' +
+            ' <A style="cursor:pointer;" onclick="FanChartView.toggleSettings();"><font size=+2>' +
             SETTINGS_GEAR +
             "</font></A>&nbsp;&nbsp;</td>" +
             '</tr></table></div><DIV id=WarningMessageBelowButtonBar style="text-align:center; background-color:yellow;">Please wait while initial Fan Chart is loading ...</DIV>';
@@ -742,8 +742,8 @@
 
         var legendHTML =
             '<div id=legendDIV style="display:none; position:absolute; left:20px; background-color:#EDEADE; border: solid darkgreen 4px; border-radius: 15px; padding: 15px;}">' +
-            '<span style="color:red; align:left"><A onclick="FanChartView.hideLegend();">[ <B><font color=red>x</font></B> ]</A></span>' +
-            "<H3 align=center>Legend</H3><div id=refreshLegend style='display:none'><A onclick='FanChartView.refreshTheLegend();'>Update Legend</A></DIV><div id=innerLegend></div></div>"; ;
+            '<span style="color:red; align:left"><A  style="cursor:pointer;" onclick="FanChartView.hideLegend();">[ <B><font color=red>x</font></B> ]</A></span>' +
+            "<H3 align=center>Legend</H3><div id=refreshLegend style='display:none; cursor:pointer;'><A onclick='FanChartView.refreshTheLegend();'>Update Legend</A></DIV><div id=innerLegend></div></div>"; ;
 
         // console.log("SETTINGS:",settingsHTML);
 
@@ -3003,7 +3003,7 @@
         FanChartView.numGens2Display = 5;
         FanChartView.lastNumGens = 5;
         FanChartView.numGensRetrieved = 5;
-        FanChartView.maxNumGens = 10;
+        FanChartView.maxNumGens = 10; // switch to 11  - make the outer ring a joint ring for Husband + Wife - 1.5 x width of other rings and no divider
         numRepeatAncestors = 0;
         repeatAncestorTracker = new Object();
 
