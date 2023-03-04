@@ -308,30 +308,30 @@
             '<table border=0 style="background-color: #f8a51d80;" width="100%"><tr>' +
             '<td width="30%">' +
             "&nbsp;" +
-            '<font size=+2><A onclick="WebsView.yDir = -1; WebsView.redraw();">&uarr;</A>' +
-            ' <A onclick="WebsView.yDir = 1; WebsView.redraw();">&darr;</A></font>  &nbsp;&nbsp;&nbsp; ' +
-            ` <A onclick="WebsView.viewMode='Full'; WebsView.redraw();">FULL</A> | ` +
-            ` <A onclick="WebsView.viewMode='Unique'; WebsView.redraw();">UNIQUE</A> | ` +
-            ` <A onclick="WebsView.viewMode='Repeats'; WebsView.redraw();">REPEAT</A> | ` +
-            ` <A onclick="WebsView.viewMode='Indi'; WebsView.redraw();">SINGLE</A>  ` +
+            '<font size=+2><A style="cursor:pointer;" onclick="WebsView.yDir = -1; WebsView.redraw();">&uarr;</A>' +
+            ' <A style="cursor:pointer;" onclick="WebsView.yDir = 1; WebsView.redraw();">&darr;</A></font>  &nbsp;&nbsp;&nbsp; ' +
+            ` <A style="cursor:pointer;" onclick="WebsView.viewMode='Full'; WebsView.redraw();">FULL</A> | ` +
+            ` <A style="cursor:pointer;" onclick="WebsView.viewMode='Unique'; WebsView.redraw();">UNIQUE</A> | ` +
+            ` <A style="cursor:pointer;" onclick="WebsView.viewMode='Repeats'; WebsView.redraw();">REPEAT</A> | ` +
+            ` <A style="cursor:pointer;" onclick="WebsView.viewMode='Indi'; WebsView.redraw();">SINGLE</A>  ` +
             //  ' <A onclick="WebsView.maxAngle = 180; WebsView.redraw();"><img height=20px src="https://apps.wikitree.com/apps/clarke11007/pix/fan180.png" /></A></td>' +
             "</td>" +
             '<td width="5%">&nbsp;</td>' +
             '<td width="30%" align="center">' +
-            ' <A onclick="WebsView.numGens2Display -=1; WebsView.redraw();"> -1 </A> ' +
+            ' <A style="cursor:pointer;" onclick="WebsView.numGens2Display -=1; WebsView.redraw();"> -1 </A> ' +
             "[ <span id=numGensInBBar>3</span> generations ]" +
-            ' <A onclick="WebsView.numGens2Display +=1; WebsView.redraw();"> +1 </A> ' +
+            ' <A style="cursor:pointer;" onclick="WebsView.numGens2Display +=1; WebsView.redraw();"> +1 </A> ' +
             "</td>" +
             '<td width="5%">&nbsp;</td>' +
-            '<td width="30%" align="right"><A onclick="WebsView.comingSoon(1);"><B>+</B>' +
+            '<td width="30%" align="right"><A style="cursor:pointer;" onclick="WebsView.comingSoon(1);"><B>+</B>' +
             PERSON_SILHOUETTE +
             "</A> &nbsp; " +
-            '  <A onclick="WebsView.comingSoon(2);">COMMON</A> |  <A onclick="WebsView.comingSoon(3);">SINGLES</A> ' +
+            '  <A style="cursor:pointer;" onclick="WebsView.comingSoon(2);">COMMON</A> |  <A style="cursor:pointer;" onclick="WebsView.comingSoon(3);">SINGLES</A> ' +
             "&nbsp;&nbsp;&nbsp;&nbsp;" +
             //  PRINTER_ICON +
             "  <font size=+2>" +
             // SETTINGS_GEAR + "</font>&nbsp;&nbsp;" +
-            ' <A onclick="WebsView.toggleSettings();"><font size=+2>' +
+            ' <A style="cursor:pointer;" onclick="WebsView.toggleSettings();"><font size=+2>' +
             SETTINGS_GEAR +
             "</font></A>" +
             "&nbsp;&nbsp;</td>" +
@@ -754,20 +754,30 @@
             WebsView.repeatAncestorNum = 0;
         }
 
+        let rootPersonName = getFLname (WebsView.primePerson);
         if (WebsView.viewMode == "Full") {
             document.getElementById("ModeTitleArea").innerHTML =
-                "<H3 class='marginBottomZero' align=center>Full Ancestor Pedigree Tree</H3>";
+                "<H3 class='marginBottomZero' align=center>Full Ancestor Pedigree Tree for <div style='display:inline-block' id=IndiFullName>" + rootPersonName + "</div></H3>";
         } else if (WebsView.viewMode == "Unique") {
             document.getElementById("ModeTitleArea").innerHTML =
-                "<H3 class='marginBottomZero' align=center>Unique Ancestors Web</H3>" +
+                "<H3 class='marginBottomZero' align=center>Unique Ancestors Web for <div style='display:inline-block' id=IndiUniqueName>" + rootPersonName + "</div></H3>" +
                 "Each ancestor appears exactly once, connected by multiple lines, if necessary.";
         } else if (WebsView.viewMode == "Repeats") {
             document.getElementById("ModeTitleArea").innerHTML =
-                "<H3 class='marginBottomZero' align=center>Repeat Ancestors Web</H3>" +
+                "<H3 class='marginBottomZero' align=center>Repeat Ancestors Web for <div style='display:inline-block' id=IndiRepeatsName>" + rootPersonName + "</div></H3>" +
                 "Only ancestors who appear more than once will be shown, connected by multiple lines to the web.";
         } else if (WebsView.viewMode == "Indi") {
+            let rootPersonSelector =
+                "<select class=selectSimpleDropDown id=rootPersonSelector><option value=0>" +
+                rootPersonName +
+                "</option><option value=0>" +
+                "Mags Gaulden" +
+                "</option><option value=0>" +
+                "Chris Ferraiolo" +
+                "</option></select>";
+
             document.getElementById("ModeTitleArea").innerHTML =
-                "<H3 class='marginBottomZero'>Ancestor Multi-Path Web to <div style='display:inline-block' id=IndiRepeaterName>No One</div></H3>" +
+                "<H3 class='marginBottomZero'>Ancestor Multi-Path Web to <div style='display:inline-block' id=IndiSingleName>" + rootPersonSelector + "</div><BR>from <div style='display:inline-block' id=IndiRepeaterName>No One</div></H3>" +
                 "<A onclick='WebsView.repeatAncestorNum--; WebsView.redraw();'><font size=+2>&larr;</font></A>" +
                 " [ <span id=IndiRepeaterNum>1 of 6</span> ] " +
                 "<A onclick='WebsView.repeatAncestorNum++; WebsView.redraw();'><font size=+2>&rarr;</font></A>";
