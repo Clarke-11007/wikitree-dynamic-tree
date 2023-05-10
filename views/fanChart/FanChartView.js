@@ -2211,13 +2211,16 @@
                         <div  id=wedgeBoxFor${
                             ancestorObject.ahnNum
                         } class="box" style="background-color: ${theClr} ; border:0; padding: 3px;">
-                        <div class="name fontBold font${font4Name}"  id=nameDivFor${ancestorObject.ahnNum}>${getSettingsName(
-                        person
-                    )}</div>                    
+                        <span  id=ahnNumFor${ancestorObject.ahnNum}>[ ${ancestorObject.ahnNum} ]<br/></span>
+                        <div class="name fontBold font${font4Name}"  id=nameDivFor${
+                        ancestorObject.ahnNum
+                    }>${getSettingsName(person)}</div>                    
                     <div class="birth vital centered font${font4Info}" id=birthDivFor${
                         ancestorObject.ahnNum
                     }>${lifespanFull(person)}</div>
-                    <div class="death vital centered font${font4Info}" id=deathDivFor${ancestorObject.ahnNum}></div>                        
+                    <div class="death vital centered font${font4Info}" id=deathDivFor${
+                        ancestorObject.ahnNum
+                    }></div>                        
                         </div>
                     `;
                 } else if (thisGenNum == 6) {
@@ -2251,12 +2254,15 @@
                         <div  id=wedgeBoxFor${
                             ancestorObject.ahnNum
                         } class="${containerClass} box" style="background-color: ${theClr} ; border:0;   "> 
+                        <span  id=ahnNumFor${ancestorObject.ahnNum}>[ ${ancestorObject.ahnNum} ]<br/></span>
                         <div class="item">${photoDiv}</div>
                         <div class="item flexGrow1">
                             <div class="name centered fontBold font${font4Name}" id=nameDivFor${ancestorObject.ahnNum}>
                                 ${getSettingsName(person)}
                             </div>                           
-                        <div class="birth vital centered font${font4Info}" id=birthDivFor${ancestorObject.ahnNum}>${lifespanFull(person)}</div>
+                        <div class="birth vital centered font${font4Info}" id=birthDivFor${
+                        ancestorObject.ahnNum
+                    }>${lifespanFull(person)}</div>
 						<div class="death vital centered font${font4Info}" id=deathDivFor${ancestorObject.ahnNum}></div>                        
                     </div>
                     </div>
@@ -2292,6 +2298,7 @@
                         <div  id=wedgeBoxFor${
                             ancestorObject.ahnNum
                         } class="${containerClass} box" style="background-color: ${theClr} ; border:0;   "> 
+                        <span  id=ahnNumFor${ancestorObject.ahnNum}>[ ${ancestorObject.ahnNum} ]<br/></span>
                         <div class="item">${photoDiv}</div>
                         <div class="item flexGrow1">
                             <div class="name centered fontBold font${font4Name}" id=nameDivFor${
@@ -2301,7 +2308,7 @@
                         ancestorObject.ahnNum
                     }>${getSettingsDateAndPlace(person, "B", thisGenNum)}</div>
 						<div class="death vital centered font${font4Info}" id=deathDivFor${ancestorObject.ahnNum}>
-                        ${getSettingsDateAndPlace(person,"D", thisGenNum)}</div>
+                        ${getSettingsDateAndPlace(person, "D", thisGenNum)}</div>
                     </div>
                     </div>
                     `;
@@ -2332,6 +2339,7 @@
                     <div  id=wedgeBoxFor${
                         ancestorObject.ahnNum
                     } class="box" style="background-color: ${theClr} ; border:0; "> 
+                    <span  id=ahnNumFor${ancestorObject.ahnNum}>[ ${ancestorObject.ahnNum} ]<br/></span>
                     ${photoDiv}
                     <div class="name centered fontBold font${font4Name}" id=nameDivFor${
                         ancestorObject.ahnNum
@@ -2367,6 +2375,7 @@
                     return `<div class="box centered" id=wedgeInfoFor${
                         ancestorObject.ahnNum
                     } style="background-color: ${theClr} ; border:0; ">
+                    <span  id=ahnNumFor${ancestorObject.ahnNum}>[ ${ancestorObject.ahnNum} ]<br/></span>
                      <div class="vital-info">
 						${photoDiv}
 						  <div class="name centered fontBold font${font4Name}" id=nameDivFor${ancestorObject.ahnNum}>
