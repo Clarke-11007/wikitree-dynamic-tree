@@ -120,7 +120,7 @@ AhnenTafel.Ahnentafel = class Ahnentafel {
     // THIS way - using an object with a unique Ahnentafel # for each occurence of an ancestor,
     //  you can have as many as you need in the resulting Tree / Chart
 
-    listOfAncestorsForFanChart(numGens = 5) {
+    listOfAncestorsForFanChart(numGens = 5, primePersonNum = 0) {
         let theList = [];
         let maxNum = this.list.length;
         let maxNumInGen = 2 ** numGens;
@@ -128,7 +128,7 @@ AhnenTafel.Ahnentafel = class Ahnentafel {
 
         for (var i = 0; i < theMax; i++) {
             if (this.list[i] && this.list[i] > 0 && thePeopleList[this.list[i]]) {
-                let thisAncestor = { ahnNum: i, person: thePeopleList[this.list[i]] };
+                let thisAncestor = { ahnNum: i, person: thePeopleList[this.list[i]], p: primePersonNum };
                 theList.push(thisAncestor);
 
                 // console.log("--> PUSHED !",thisAncestor.ahnNum, thisAncestor.person._data.Id);
@@ -146,7 +146,7 @@ AhnenTafel.Ahnentafel = class Ahnentafel {
     // This function will go through all people at generation (newLevel - 1) - and find all the IDs for their parents
     // IF that parent already exists in the thePeopleList - fine - no big whoop
     // IF that parent DOES NOT EXIST, then add their ID to the huge list we're going to send back
-    listOfAncestorsToBeLoadedForLevel(numGens) {
+    listOfAncestorsToBeLoadedForLevel(numGens = 10) {
         let theList = [];
         let maxNum = this.list.length;
         let maxNumInGen = 2 ** numGens;
