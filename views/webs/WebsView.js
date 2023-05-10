@@ -97,11 +97,11 @@
     /** Static variable to hold the y Direction variable (+1 for going downwards, -1 for going upwards) from Central person to Ancestors    **/
     WebsView.yDir = -1;
 
-    /** Static variable to hold the current MODE  (Full / Unique / Indi / MultiUnique / MultiIndi )     **/
+    /** Static variable to hold the current MODE  (Full / Unique / Repeats / Indi // Common / Singles )     **/
     WebsView.viewMode = "Full";
 
-    /** Static variable to hold the current Central Person Number **/
-    WebsView.currentPersonNum = 0;
+    /** Static variable to hold the current Prime Person Number **/
+    WebsView.currentPrimeNum = 0;
 
     /** Static variable to hold the current Repeat Ancestor Number **/
     WebsView.repeatAncestorNum = -1;
@@ -110,10 +110,11 @@
     WebsView.PeopleList = thePeopleList;
 
     /** Static variables to hold the state of the Number of Generations to be displayed, currently and previously  **/
-    WebsView.numGens2Display = 3;
-    WebsView.lastNumGens = 3;
-    WebsView.numGensRetrieved = 3;
+    WebsView.numGens2Display = 5;
+    WebsView.lastNumGens = 5;
+    WebsView.numGensRetrieved = 5;
     WebsView.maxNumGens = 14;
+    WebsView.maxNumPrimes = 4; // maximum # of Primary Persons - i.e. - limit on # of people to add to compare Common Ancestors with each other
     WebsView.workingMaxNumGens = 4;
 
     /** Object to hold the Ahnentafel table for the current primary individual   */
@@ -122,8 +123,20 @@
     /** Object to hold the Ancestors as they are returned from the getAncestors API call    */
     WebsView.theAncestors = [];
 
+    /** Array to hold the list of all Prime Persons  */
+    WebsView.listOfPrimePersons = [];
+
     /** Array to hold the list of all Repeated Ancestors  */
     WebsView.listOfRepeatAncestors = [];
+
+    /** Array to hold the list of all the lists of all Repeated Ancestors  */
+    WebsView.listOfRepeatAncestors4PrimePersons = [];
+
+    /** Array to hold the list of all the Ahnentafel tables of all the Prime Persons  */
+    WebsView.listOfAhnentafels = [];
+
+    /** Array to hold the list of all COMMON Ancestors  */
+    WebsView.listOfCommonAncestors = [];
 
     /** Object in which to store the CURRENT settings (to be updated after clicking on SAVE CHANGES (all Tabs) inside Settings <DIV> ) */
     WebsView.currentSettings = {};
@@ -295,7 +308,7 @@
         // Setup zoom and pan
         var zoom = d3.behavior
             .zoom()
-            .scaleExtent([0.1, 1])
+            .scaleExtent([0.1, 2])
             .on("zoom", function () {
                 svg.attr("transform", "translate(" + d3.event.translate + ") scale(" + d3.event.scale + ")");
             })
@@ -319,7 +332,7 @@
             '<td width="5%">&nbsp;</td>' +
             '<td width="30%" align="center">' +
             ' <A style="cursor:pointer;" onclick="WebsView.numGens2Display -=1; WebsView.redraw();"> -1 </A> ' +
-            "[ <span id=numGensInBBar>3</span> generations ]" +
+            "[ <span id=numGensInBBar>5</span> generations ]" +
             ' <A style="cursor:pointer;" onclick="WebsView.numGens2Display +=1; WebsView.redraw();"> +1 </A> ' +
             "</td>" +
             '<td width="5%">&nbsp;</td>' +
@@ -336,8 +349,12 @@
             "</font></A>" +
             "&nbsp;&nbsp;</td>" +
             '</tr></table><DIV id=WarningMessageBelowButtonBar style="text-align:center; background-color:yellow;">Please wait while initial Ancestor Webs is loading ...</DIV>' +
+            '<DIV id=AddNewPersonDIV style="display: none;position: absolute;right: 20px;background-color: white;border: 4px solid darkgreen;border-radius: 15px;padding: 15px; text-align:center;">loading ...</DIV>' +
             '<DIV id=ModeTitleArea style="text-align:center;"><H3 align=center class=marginBottomZero>Full Ancestor Tree</H3></DIV>' +
             '<DIV id=SummaryMessageArea style="text-align:center;"></DIV>';
+
+        // style =
+        //     "display: block;position: absolute;left: 20px;background-color: white;border: 4px solid darkgreen;border-radius: 15px;padding: 15px; text-align:center;";
 
         var settingsHTML = "";
 
@@ -359,6 +376,36 @@
             }
         }
 
+        WebsView.reallyAddPerson = function () {
+            let newWikiTreeID = document.getElementById("newWikiTreeID").value;
+            console.log("REALLY adding PERSON ", newWikiTreeID);
+            WebsView.cancelAddNewPopup();
+            loadNewPrimaryPerson(newWikiTreeID);
+        };
+
+        WebsView.addNewPersonStart = function () {
+            WebsView.cancelSettings();
+
+            let theDIV = document.getElementById("AddNewPersonDIV");
+            let theX =
+                '<span style="color:red; position:absolute; top:0.2em; right:0.6em; cursor:pointer;"><a onclick="WebsView.cancelAddNewPopup();">[ <b><font color="red">x</font></b> ]</a></span>';
+            let theHTML =
+                theX +
+                "<H3>Enter WikiTree ID for New Person</H3><input id=newWikiTreeID>&nbsp;&nbsp;&nbsp;&nbsp;<button class=small onclick='WebsView.reallyAddPerson();'>Add New Person</button><br>";
+            if (theDIV.style.display == "block") {
+                theDIV.style.display = "none";
+            } else {
+                theDIV.style.display = "block";
+            }
+            theDIV.innerHTML = theHTML;
+        };
+
+        WebsView.cancelAddNewPopup = function () {
+            // console.log("Hiding PopUp " );
+            let theDIV = document.getElementById("AddNewPersonDIV");
+            theDIV.style.display = "none";
+        };
+
         WebsView.cancelSettings = function () {
             let theDIV = document.getElementById("settingsDIV");
             theDIV.style.display = "none";
@@ -371,6 +418,7 @@
             console.log("SETTINGS ARE:", theDIV.style.display);
             if (theDIV.style.display == "none") {
                 theDIV.style.display = "block";
+                WebsView.cancelAddNewPopup();
             } else {
                 theDIV.style.display = "none";
             }
@@ -417,28 +465,24 @@
             * Made of Lines connecting two ancestors together
 
         */
-
-        for (let index = 0; index < 2 ** WebsView.maxNumGens; index++) {
-            // Create  Empty Lines, hidden, to be used later
-            // One to the person's Pa (Father) and the other to their Ma (Mother)
-            svg.append("line").attr({
-                id: "lineForPerson" + index + "Pa",
-                display: "none",
-                x1: 0,
-                y1: 0,
-                x2: 0,
-                y2: 0,
-                style: "stroke: black; stroke-width: 1;",
-            });
-            svg.append("line").attr({
-                id: "lineForPerson" + index + "Ma",
-                display: "none",
-                x1: 0,
-                y1: 0,
-                x2: 0,
-                y2: 0,
-                style: "stroke: black; stroke-width: 1;",
-            });
+        
+        for (let pp = 0; pp < WebsView.maxNumPrimes; pp++) {
+            for (let index = 0; index < 2 ** WebsView.maxNumGens; index++) {
+                // Create  Empty Lines, hidden, to be used later
+                // One to the person's Pa (Father) and the other to their Ma (Mother)
+                svg.append("polyline").attr({
+                    id: "lineForPerson" + index + "p" + pp +"Pa",
+                    display: "none",
+                    points: "0,0 0,0",
+                    style: "fill:none; stroke: black; stroke-width: 1;",
+                });
+                svg.append("polyline").attr({
+                    id: "lineForPerson" + index + "p" + pp + "Ma",
+                    display: "none",
+                    points: "0,0 0,0",
+                    style: "fill:none; stroke: black; stroke-width: 1;",
+                });
+            }
         }
 
         self.load(startId);
@@ -448,10 +492,10 @@
         WebsView.currentSettings = WebsView.websSettingsOptionsObject.getDefaultOptions();
     };
 
-    function findMatchingNodeByAhnNum(ahnNum, theNodes) {
+    function findMatchingNodeByAhnNum(ahnNum, theNodes, primeNum = 0) {
         for (let index = 0; index < theNodes.length; index++) {
             const element = theNodes[index];
-            if (element.ahnNum == ahnNum) {
+            if (element.ahnNum == ahnNum && element.p == primeNum) {
                 return element;
             }
         }
@@ -462,174 +506,396 @@
     WebsView.drawLines = function (theNodes) {
         // console.log("DRAWING LINES stuff should go here");
         let numSpotsMaxGen = 2 ** (WebsView.numGens2Display - 1);
-        for (let thisGenNum = 0; thisGenNum < WebsView.numGens2Display - 1; thisGenNum++) {
-            let numSpotsThisGen = 2 ** thisGenNum;
-            let numSpotsNextGen = 2 * numSpotsThisGen;
-            let nextGenNum = thisGenNum + 1;
+        let processThisPrime = true;
 
-            for (let thisPosNum = 0; thisPosNum < numSpotsThisGen; thisPosNum++) {
-                let index = 2 ** thisGenNum + thisPosNum; // a.k.a. the Ahnentafel # for this PERP
-                let theNode = findMatchingNodeByAhnNum(index, theNodes);
-                let theNodePa = null;
-                let theNodeMa = null;
-                let useNodePa = true;
-                let useNodeMa = true;
-                let genNumForDisplay = thisGenNum;
-                let genNumForDisplayMa = nextGenNum;
-                let genNumForDisplayPa = nextGenNum;
+        let connectorsArray = [];
 
-                if (WebsView.viewMode == "Indi" || WebsView.viewMode == "Repeats") {
-                    if (theNode && theNode["useThis"] == true) {
-                        let tempNodePa = findMatchingNodeByAhnNum(2 * index, theNodes);
-                        if (tempNodePa && tempNodePa["useThis"] == true) {
-                            // great we keep Pa
-                        } else {
-                            useNodePa = false;
+        for (let pp = 0; pp < WebsView.listOfPrimePersons.length; pp++) {
+                if (WebsView.viewMode == "Full" || WebsView.viewMode == "Unique" ) {
+                    if (WebsView.currentPrimeNum == pp) {
+                        processThisPrime = true;
+                    } else {
+                        processThisPrime = false;
+                        console.log("SHOULD HIDE PRIME PERSON # ",pp, " and ALL THEIR LINES");
+                        for (let index = 0; index <  2 ** (WebsView.numGens2Display - 1); index++
+                        ) {
+                            const elementPa = document.getElementById("lineForPerson" + index + "p" + pp + "Pa");
+                            if (elementPa) {
+                                elementPa.setAttribute("display", "none");
+                            }
+                            const elementMa = document.getElementById("lineForPerson" + index + "p" + pp + "Ma");
+                            if (elementMa) {
+                                elementMa.setAttribute("display", "none");
+                            }
                         }
-                        let tempNodeMa = findMatchingNodeByAhnNum(2 * index + 1, theNodes);
-                        if (tempNodeMa && tempNodeMa["useThis"] == true) {
-                            // great we keep Ma
-                        } else {
-                            useNodeMa = false;
-                        }
-                        if (theNode["newY"] && theNode["newY"] > 0) {
-                            // console.log("Found newY : ", theNode["newY"]);
+                    }
+                }
+                for (let thisGenNum = 0;( thisGenNum < ( WebsView.numGens2Display - 1)) && processThisPrime; thisGenNum++) {
+                    let numSpotsThisGen = 2 ** thisGenNum;
+                    let numSpotsNextGen = 2 * numSpotsThisGen;
+                    let nextGenNum = thisGenNum + 1;
 
-                            if (WebsView.viewMode == "Indi") {
-                                genNumForDisplay = theNode["newY"];
+                    for (let thisPosNum = 0; thisPosNum < numSpotsThisGen; thisPosNum++) {
+                        let index = 2 ** thisGenNum + thisPosNum; // a.k.a. the Ahnentafel # for this PERP
+                        let theNode = findMatchingNodeByAhnNum(index, theNodes, pp);
+                        let theNodePa = null;
+                        let theNodeMa = null;
+                        let useNodePa = true;
+                        let useNodeMa = true;
+                        let genNumForDisplay = thisGenNum;
+                        let genNumForDisplayMa = nextGenNum;
+                        let genNumForDisplayPa = nextGenNum;
+
+                        if (
+                            WebsView.viewMode == "Indi" ||
+                            WebsView.viewMode == "Repeats" ||
+                            WebsView.viewMode == "Common"
+                        ) {
+                            if (theNode && theNode["useThis"] == true) {
+                                let tempNodePa = findMatchingNodeByAhnNum(2 * index, theNodes, pp);
+                                if (tempNodePa && tempNodePa["useThis"] == true) {
+                                    // great we keep Pa
+                                } else {
+                                    useNodePa = false;
+                                }
+                                let tempNodeMa = findMatchingNodeByAhnNum(2 * index + 1, theNodes, pp);
+                                if (tempNodeMa && tempNodeMa["useThis"] == true) {
+                                    // great we keep Ma
+                                } else {
+                                    useNodeMa = false;
+                                }
+                                if (theNode["newY"] && theNode["newY"] > 0) {
+                                    // console.log("Found newY : ", theNode["newY"]);
+
+                                    if (WebsView.viewMode == "Indi" || WebsView.viewMode == "Common") {
+                                        genNumForDisplay = theNode["newY"];
+                                    } else {
+                                        genNumForDisplay = 1 + 2 * theNode["newY"] - WebsView.repeatsStartAtGenNum;
+                                    }
+
+                                    genNumForDisplayPa = genNumForDisplay + 1;
+                                    genNumForDisplayMa = genNumForDisplay + 1;
+                                }
+                            } else if (theNode) {
+                                console.log("Testing ", theNode["useThis"]);
+                                useNodePa = false;
+                                useNodeMa = false;
                             } else {
+                                // console.log("Fail Testing ", theNode);
+                                useNodePa = false;
+                                useNodeMa = false;
+                            }
+                        } else if (WebsView.viewMode == "Unique") {
+                            if (theNode && theNode["newY"] > 0) {
                                 genNumForDisplay = 1 + 2 * theNode["newY"] - WebsView.repeatsStartAtGenNum;
                             }
-
-                            genNumForDisplayPa = genNumForDisplay + 1;
-                            genNumForDisplayMa = genNumForDisplay + 1;
+                        } else if (WebsView.viewMode == "Common") {
+                            genNumForDisplay = theNode["newY"];
                         }
-                    } else if (theNode) {
-                        console.log("Testing ", theNode["useThis"]);
-                        useNodePa = false;
-                        useNodeMa = false;
-                    } else {
-                        // console.log("Fail Testing ", theNode);
-                        useNodePa = false;
-                        useNodeMa = false;
-                    }
-                } else if (WebsView.viewMode == "Unique") {
-                    if (theNode && theNode["newY"] > 0) {
-                        genNumForDisplay = 1 + 2 * theNode["newY"] - WebsView.repeatsStartAtGenNum;
-                    }
-                }
 
-                const elementPa = document.getElementById("lineForPerson" + index + "Pa");
-                if (elementPa) {
-                    if (
-                        useNodePa &&
-                        WebsView.myAhnentafel.list[2 * index] &&
-                        thePeopleList[WebsView.myAhnentafel.list[2 * index]]
-                    ) {
-                        elementPa.setAttribute("display", "block");
-                        theNodePa = findMatchingNodeByAhnNum(2 * index, theNodes);
-                        if (theNodePa["newY"] && theNodePa["newY"] > 0) {
-                            // console.log("Found newY : ", theNodePa["newY"]);
-                            if (WebsView.viewMode == "Indi") {
-                                genNumForDisplayPa = theNodePa["newY"];
+                        const elementPa = document.getElementById("lineForPerson" + index + "p" + pp + "Pa");
+                        let useSteps = false; // flag to determine whether to use STEPS to get from child to Pa  (or Ma) - versus a straight (diagonal) line to connect them
+                        if (elementPa) {
+                            theNodePa = findMatchingNodeByAhnNum(2 * index, theNodes, pp);
+                            if (
+                                useNodePa && theNodePa 
+                                // &&
+                                // // WebsView.myAhnentafel.list[2 * index] &&
+                                // thePeopleList[ tempNodePa.person._data.Id ]
+                            ) {
+                                elementPa.setAttribute("display", "block");
+                                // console.log("WA ... PA !!!")
+                                let theClr = "blue";
+                                
+                                if (theNodePa) {
+                                    let thisNameNow = getNameAsPerSettings(theNodePa.person);
+                                    if (theNodePa.person._data.theClr > "") {
+                                        console.log(
+                                            "theNodePa DOES EXIST",
+                                            thisNameNow , theNodePa.person._data.theClr
+                                        );
+                                        theClr = theNodePa.person._data.theClr;
+                                        useSteps = true;
+                                    } else {
+                                        // console.log(
+                                        //     "theNodePa EXISTS - but - CAN'T FIND A CLR HERE !",
+                                        //     thisNameNow
+                                        // );
+                                    }
+                                } else  {
+                                    console.log("theNodePa.person._data.theClr DOES NOT EXIST");
+                                }
+                                elementPa.setAttribute("style", "fill:none; stroke:" + theClr);
+                                // if (repeatAncestorTracker && )
+                                // theClr = repeatAncestorTracker[ancestorObject.person._data.Id];
+                                if (theNodePa && theNodePa["newY"] && theNodePa["newY"] > 0) {
+                                    // console.log("Found newY : ", theNodePa["newY"]);
+                                    if (WebsView.viewMode == "Indi" || WebsView.viewMode == "Common") {
+                                        genNumForDisplayPa = theNodePa["newY"];
+                                    } else {
+                                        genNumForDisplayPa = 1 + 2 * theNodePa["newY"] - WebsView.repeatsStartAtGenNum;
+                                    }
+                                }
                             } else {
-                                genNumForDisplayPa = 1 + 2 * theNodePa["newY"] - WebsView.repeatsStartAtGenNum;
+                                elementPa.setAttribute("display", "none");
                             }
                         }
-                    } else {
-                        elementPa.setAttribute("display", "none");
-                    }
-                }
 
-                const elementMa = document.getElementById("lineForPerson" + index + "Ma");
-                if (elementMa) {
-                    if (
-                        useNodeMa &&
-                        WebsView.myAhnentafel.list[2 * index + 1] &&
-                        thePeopleList[WebsView.myAhnentafel.list[2 * index + 1]]
-                    ) {
-                        elementMa.setAttribute("display", "block");
-                        theNodeMa = findMatchingNodeByAhnNum(2 * index + 1, theNodes);
-                        if (theNodeMa["newY"] && theNodeMa["newY"] > 0) {
-                            // console.log("Found newY : ", theNodeMa["newY"]);
-                            if (WebsView.viewMode == "Indi") {
-                                genNumForDisplayMa = theNodeMa["newY"];
+                        const elementMa = document.getElementById("lineForPerson" + index + "p" + pp + "Ma");
+                        if (elementMa) {
+                            theNodeMa = findMatchingNodeByAhnNum(2 * index + 1, theNodes, pp);
+                            if (
+                                useNodeMa && theNodeMa
+                                // WebsView.myAhnentafel.list[2 * index + 1] &&
+                                // thePeopleList[WebsView.myAhnentafel.list[2 * index + 1]]
+                            ) {
+                                elementMa.setAttribute("display", "block");
+                                let theClr = "red";
+                                if (theNodeMa) {
+                                    if (
+                                        theNodeMa.person._data.theClr  && 
+                                        theNodeMa.person._data.theClr > ""
+                                    ) {
+                                        let thisNameNow = getNameAsPerSettings(theNodeMa.person);
+                                        console.log("theNodeMa DOES EXIST", thisNameNow, theNodeMa.person._data.theClr);
+                                        theClr = theNodeMa.person._data.theClr;
+                                        useSteps = true;
+                                    }
+                                }
+                                elementMa.setAttribute("style", "fill:none;stroke:" + theClr);
+                                if (theNodeMa && theNodeMa["newY"] && theNodeMa["newY"] > 0) {
+                                    // console.log("Found newY : ", theNodeMa["newY"]);
+                                    if (WebsView.viewMode == "Indi" || WebsView.viewMode == "Common") {
+                                        genNumForDisplayMa = theNodeMa["newY"];
+                                    } else {
+                                        genNumForDisplayMa = 1 + 2 * theNodeMa["newY"] - WebsView.repeatsStartAtGenNum;
+                                    }
+                                }
                             } else {
-                                genNumForDisplayMa = 1 + 2 * theNodeMa["newY"] - WebsView.repeatsStartAtGenNum;
+                                elementMa.setAttribute("display", "none");
                             }
                         }
-                    } else {
-                        elementMa.setAttribute("display", "none");
+
+                        let X =
+                            0 - numSpotsThisGen * 20 + (thisPosNum / numSpotsThisGen) * vertSpacing * numSpotsThisGen;
+                        X = 0 - numSpotsMaxGen * 20 + (thisPosNum / numSpotsThisGen) * vertSpacing * numSpotsMaxGen;
+                        let dX = (((numSpotsThisGen - 1) / numSpotsThisGen) * vertSpacing * numSpotsMaxGen) / 2;
+                        X = 0 - dX + (thisPosNum / numSpotsThisGen) * vertSpacing * numSpotsMaxGen;
+
+                        if (theNode) {
+                            X = theNode.newX;
+                        }
+
+                        let Y = WebsView.yDir * vertSpacing * genNumForDisplay;
+
+                        let dX2 = (((numSpotsNextGen - 1) / numSpotsNextGen) * vertSpacing * numSpotsMaxGen) / 2;
+                        let dX4 = vertSpacing * 2 ** (WebsView.numGens2Display - 2 - thisGenNum);
+                        let dX3 = 2 * dX4; //((numSpotsNextGen - 1) / numSpotsNextGen ) * vertSpacing * numSpotsMaxGen / 2;
+
+                        let Xpa =
+                            0 -
+                            numSpotsNextGen * 20 +
+                            ((thisPosNum * 2) / numSpotsNextGen) * vertSpacing * numSpotsNextGen;
+                        Xpa = 0 - dX2 + thisPosNum * dX3;
+                        if (theNodePa) {
+                            Xpa = theNodePa.newX;
+                        }
+                        let Ypa = WebsView.yDir * vertSpacing * genNumForDisplayPa;
+
+                        let Xma =
+                            0 -
+                            numSpotsNextGen * 20 +
+                            ((thisPosNum * 2 + 1) / numSpotsNextGen) * vertSpacing * numSpotsNextGen;
+                        Xma = Xpa + dX4; //0 - dX +  ((thisPosNum * 2 + 1) / numSpotsNextGen ) * vertSpacing * numSpotsNextGen;
+                        if (theNodeMa) {
+                            Xma = theNodeMa.newX;
+                        }
+                        let Yma = WebsView.yDir * vertSpacing * genNumForDisplayMa;
+
+                        elementPa.setAttribute("points", X + "," + Y + " " + Xpa + "," + Ypa);
+                        if (useSteps == true && elementPa.getAttribute("display") == "block") {
+                            // NOTE:  Can't get closer than Ypa + 25
+
+                            elementPa.setAttribute(
+                                "points",
+                                X -
+                                    3 +
+                                    "," +
+                                    Y +
+                                    " " +
+                                    (X - 3) +
+                                    "," +
+                                    (Y - 20) +
+                                    " " +
+                                    Xpa +
+                                    "," +
+                                    (Y - 20) +
+                                    " " +
+                                    Xpa +
+                                    "," +
+                                    Ypa
+                            );
+
+                            connectorsArray.push({
+                                genNum: genNumForDisplay,
+                                a: Math.min(X - 3, Xpa),
+                                b: Math.max(X - 3, Xpa),
+                                y1: Y,
+                                y2: Ypa,
+                                dir : X - 3 - Xpa,
+                                elem: elementPa,
+                            });
+                        }
+                        // elementPa.setAttribute("y1", Y);
+                        // elementPa.setAttribute("x2", Xpa);
+                        // elementPa.setAttribute("y2", Ypa);
+
+                        elementMa.setAttribute("points", X + "," + Y + " " + Xma + "," + Yma);
+                        if (useSteps == true && elementMa.getAttribute("display") == "block" ){
+                            // NOTE:  Can't get closer than Yma + 25
+                            
+                            elementMa.setAttribute("points", (X + 3) + "," + Y + " " 
+                                    + (X + 3) + "," + ( Y - 20)  +
+                                    " " +
+                                    Xma + "," + ( Y - 20)  +
+                                    " " +
+                                    Xma + "," + Yma
+                            );
+                            connectorsArray.push({
+                                genNum: genNumForDisplay,
+                                a: Math.min(X + 3, Xma),
+                                b: Math.max(X + 3, Xma),
+                                y1: Y,
+                                y2: Yma,
+                                dir : X + 3 - Xma,
+                                elem: elementMa,
+                            });
+                        }
+                        // elementMa.setAttribute("y1", Y);
+                        // elementMa.setAttribute("x2", Xma);
+                        // elementMa.setAttribute("y2", Yma);
                     }
                 }
+            }
 
-                let X = 0 - numSpotsThisGen * 20 + (thisPosNum / numSpotsThisGen) * vertSpacing * numSpotsThisGen;
-                X = 0 - numSpotsMaxGen * 20 + (thisPosNum / numSpotsThisGen) * vertSpacing * numSpotsMaxGen;
-                let dX = (((numSpotsThisGen - 1) / numSpotsThisGen) * vertSpacing * numSpotsMaxGen) / 2;
-                X = 0 - dX + (thisPosNum / numSpotsThisGen) * vertSpacing * numSpotsMaxGen;
+        // NOW ... LET's SEE IF THERE ARE SOME CONNECTORS that WE NEED TO RE-DO    
 
-                if (theNode) {
-                    X = theNode.newX;
+        if (connectorsArray.length > 0)  {
+            console.log("LUCY - WE HAVE SOME CONNECTING TO DO !!!!");
+            connectorsArray.sort( function(c1, c2) {
+                if (c1.genNum != c2.genNum) {
+                    return (c1.genNum - c2.genNum);
+                } else if (c1.a < c2.a) {
+                    return (c1.a - c2.a);
+                } else {
+                    return (c1.y1 - c2.y1);
+                }
+            
+            })
+            console.log(connectorsArray);
+
+            let yAvailableSlots = [];
+            let thisGenNum = connectorsArray[0].genNum - 1;
+
+            for (let c = 0; c < connectorsArray.length; c++) {
+                const conn = connectorsArray[c];
+                if (conn.genNum > thisGenNum) {
+                    // start a new generation - so restart all the ySlots
+                    yAvailableSlots = [conn.b];
+                    thisGenNum = conn.genNum;
+                    // nothing need be changed with this connector - it's the first, so there is no conflict with it
+                } else {
+                    // OK - this is NOT the first connector - so - we have to see if there is room for it at its current default height
+                    let availableSlotFound = -1;
+                    for (let ys = 0; ys < yAvailableSlots.length && availableSlotFound == -1; ys++) {
+                        if (conn.a > yAvailableSlots[ys]) {
+                            // this slot is now open - YAY !
+                             yAvailableSlots[ys] = conn.b;
+                             availableSlotFound = ys;
+                        }
+                    }
+                    if (availableSlotFound == -1) {
+                        // need to add a new slot
+                        yAvailableSlots.push(conn.b);
+                        availableSlotFound = yAvailableSlots.length - 1;
+                    }
+                    console.log("Connector ", c, " @ height : ", availableSlotFound);
+
+                    let X1 = conn.a;
+                    let X2 = conn.b;
+
+                    if (conn.dir > 0) {
+                        X1 = conn.b;
+                        X2 = conn.a;
+                    }
+                    conn.elem.setAttribute(
+                        "points",
+                        X1 +
+                            "," +
+                            conn.y1 +
+                            " " +
+                            X1 +
+                            "," +
+                            (conn.y1 - 20 - 10 * availableSlotFound) +
+                            " " +
+                            X2 +
+                            "," +
+                            (conn.y1 - 20 - 10 * availableSlotFound) +
+                            " " +
+                            X2 +
+                            "," +
+                            conn.y2
+                    );
+
                 }
 
-                let Y = WebsView.yDir * vertSpacing * genNumForDisplay;
-
-                let dX2 = (((numSpotsNextGen - 1) / numSpotsNextGen) * vertSpacing * numSpotsMaxGen) / 2;
-                let dX4 = vertSpacing * 2 ** (WebsView.numGens2Display - 2 - thisGenNum);
-                let dX3 = 2 * dX4; //((numSpotsNextGen - 1) / numSpotsNextGen ) * vertSpacing * numSpotsMaxGen / 2;
-
-                let Xpa =
-                    0 - numSpotsNextGen * 20 + ((thisPosNum * 2) / numSpotsNextGen) * vertSpacing * numSpotsNextGen;
-                Xpa = 0 - dX2 + thisPosNum * dX3;
-                if (theNodePa) {
-                    Xpa = theNodePa.newX;
-                }
-                let Ypa = WebsView.yDir * vertSpacing * genNumForDisplayPa;
-
-                let Xma =
-                    0 - numSpotsNextGen * 20 + ((thisPosNum * 2 + 1) / numSpotsNextGen) * vertSpacing * numSpotsNextGen;
-                Xma = Xpa + dX4; //0 - dX +  ((thisPosNum * 2 + 1) / numSpotsNextGen ) * vertSpacing * numSpotsNextGen;
-                if (theNodeMa) {
-                    Xma = theNodeMa.newX;
-                }
-                let Yma = WebsView.yDir * vertSpacing * genNumForDisplayMa;
-
-                elementPa.setAttribute("x1", X);
-                elementPa.setAttribute("y1", Y);
-                elementPa.setAttribute("x2", Xpa);
-                elementPa.setAttribute("y2", Ypa);
-
-                elementMa.setAttribute("x1", X);
-                elementMa.setAttribute("y1", Y);
-                elementMa.setAttribute("x2", Xma);
-                elementMa.setAttribute("y2", Yma);
+                
             }
         }
-        for (let index = 2 ** (WebsView.numGens2Display - 1); index < 2 ** (WebsView.maxNumGens - 1); index++) {
-            const elementPa = document.getElementById("lineForPerson" + index + "Pa");
-            if (elementPa) {
-                elementPa.setAttribute("display", "none");
-            }
-            const elementMa = document.getElementById("lineForPerson" + index + "Ma");
-            if (elementMa) {
-                elementMa.setAttribute("display", "none");
+
+
+        // HIDE ALL THE OTHER LINES WE DON'T NEED (because they are too high / too many generations above us)    
+        for (let pp = 0; pp < WebsView.listOfPrimePersons.length; pp++) {
+            for (let index = 2 ** (WebsView.numGens2Display - 1); index < 2 ** (WebsView.maxNumGens - 1); index++) {
+                const elementPa = document.getElementById("lineForPerson" + index + "p" + pp + "Pa");
+                if (elementPa) {
+                    elementPa.setAttribute("display", "none");
+                }
+                const elementMa = document.getElementById("lineForPerson" + index + "p" + pp + "Ma");
+                if (elementMa) {
+                    elementMa.setAttribute("display", "none");
+                }
             }
         }
     };
 
     WebsView.comingSoon = function (num) {
         if (num == 1) {
-            showTemporaryMessageBelowButtonBar(
-                "WHEN this feature is implemented,<BR>it will allow you to ADD additional starting WikiTree IDs<BR>with which to find and compare common ancestors."
-            );
+            WebsView.addNewPersonStart();
+            // showTemporaryMessageBelowButtonBar(
+            //     "WHEN this feature is implemented,<BR>it will allow you to ADD additional starting WikiTree IDs<BR>with which to find and compare common ancestors."
+            // );
         } else if (num == 2) {
-            showTemporaryMessageBelowButtonBar(
-                "WHEN this feature is implemented,<BR>it will show a Web of all the Ancestors<BR>that are COMMON to the people entered."
-            );
+            if (WebsView.listOfPrimePersons.length < 2) {
+                showTemporaryMessageBelowButtonBar(
+                    "WHEN there is more than one Starting Person, this feature will be active,<BR> and it will show a Web of all the Ancestors<BR>that are COMMON to the people entered."
+                    );
+            } else {
+                showTemporaryMessageBelowButtonBar("DISPLAY COMMON NOW");
+                WebsView.viewMode = "Common";
+                WebsView.redraw();
+            }
+
         } else if (num == 3) {
-            showTemporaryMessageBelowButtonBar(
-                "WHEN this feature is implemented,<BR>it will show the Multi-Path web from a specific Ancestor to each of the people descendant."
-            );
+            if (WebsView.listOfPrimePersons.length < 2) {
+                showTemporaryMessageBelowButtonBar(
+                    "WHEN there is more than one Starting Person, this feature will be active,<BR>and it will show the Multi-Path web from a specific Ancestor to each of the people descendant."
+                );
+            } else {
+                showTemporaryMessageBelowButtonBar("DISPLAY SINGLES NOW");
+                WebsView.viewMode = "Singles";
+                WebsView.redraw();
+            }
         }
     };
     // Flash a message in the WarningMessageBelowButtonBar DIV
@@ -679,6 +945,29 @@
     function loadAncestorsAtLevel(newLevel) {
         console.log("Need to load MORE peeps from Generation ", newLevel);
         let theListOfIDs = WebsView.myAhnentafel.listOfAncestorsToBeLoadedForLevel(newLevel);
+        if (WebsView.listOfAhnentafels.length > 1) {
+            for (let aa = 0; aa < WebsView.listOfAhnentafels.length; aa++) {
+                if (aa == WebsView.currentPrimeNum) {
+                    // do nothing - the list of IDs is already in theListOfIDs
+                } else {
+                    const thisAhnentafel = WebsView.listOfAhnentafels[aa];
+                    let thisList = thisAhnentafel.listOfAncestorsToBeLoadedForLevel(newLevel);
+                    theListOfIDs = theListOfIDs.concat(thisList);
+                }
+            }
+            theListOfIDs.sort();
+        }
+        let prevItem = "";
+        for (let li = theListOfIDs.length - 1; li >= 0 ; li--) {
+            const thisItem = theListOfIDs[li];
+            if (thisItem == prevItem) {
+                theListOfIDs.splice(li, 1);
+            } else {
+                prevItem = thisItem;
+            }
+        }
+        
+
         // console.log(theListOfIDs);
         if (theListOfIDs.length == 0) {
             // console.log("WARNING WARNING - DANGER DANGER WILL ROBINSONS")
@@ -731,6 +1020,22 @@
         }
     }
 
+     WebsView.changePrimePerson = function () {
+         let newPersonNum = document.getElementById("rootPersonSelector").value;
+         console.log("CHANGE THE PRIME PERSON HERE!", newPersonNum);
+         WebsView.currentPrimeNum = newPersonNum;
+
+         // for (let index = 0; index < WebsView.theAncestors.length; index++) {
+         //     thePeopleList.add(WebsView.theAncestors[index]);
+         // }
+         let thisNewID = WebsView.listOfPrimePersons[newPersonNum];
+         let thePerson = thePeopleList[thisNewID];
+         WebsView.repeatAncestorNum = Math.max(WebsView.repeatAncestorNum , WebsView.listOfRepeatAncestors.length - 1);
+         WebsView.myAhnentafel.update(thePerson);
+         WebsView.primePerson = thePerson;
+         WebsView.myAncestorTree.draw();
+     };
+
     /** FUNCTION used to force a redraw of the Ancestor Webs, used when called from Button Bar after a parameter has been changed */
 
     WebsView.redraw = function () {
@@ -754,33 +1059,110 @@
             WebsView.repeatAncestorNum = 0;
         }
 
-        let rootPersonName = getFLname (WebsView.primePerson);
+        let rootPersonName = getFLname(WebsView.primePerson);
+
+        let rootPersonSelector = "<select  style='cursor:pointer;' onchange='WebsView.changePrimePerson();' class=selectSimpleDropDown id=rootPersonSelector>";
+        for (let pp = 0; pp < WebsView.listOfPrimePersons.length; pp++) {
+            const ppID = WebsView.listOfPrimePersons[pp];
+            let isSelected = "";
+            if (pp == WebsView.currentPrimeNum) {
+                isSelected = " selected ";
+            }
+            rootPersonSelector += "<option value=" + pp + isSelected + ">" + getFLname(thePeopleList[ppID]) + "</option>";
+        }
+        rootPersonSelector += "</select>";
+
         if (WebsView.viewMode == "Full") {
             document.getElementById("ModeTitleArea").innerHTML =
-                "<H3 class='marginBottomZero' align=center>Full Ancestor Pedigree Tree for <div style='display:inline-block' id=IndiFullName>" + rootPersonName + "</div></H3>";
+                "<H3 class='marginBottomZero' align=center>Full Ancestor Pedigree Tree for " + rootPersonSelector +
+                "</div></H3>";
+                
         } else if (WebsView.viewMode == "Unique") {
             document.getElementById("ModeTitleArea").innerHTML =
-                "<H3 class='marginBottomZero' align=center>Unique Ancestors Web for <div style='display:inline-block' id=IndiUniqueName>" + rootPersonName + "</div></H3>" +
+                "<H3 class='marginBottomZero' align=center>Unique Ancestors Web for " +
+                rootPersonSelector +
+                "</div></H3>" +
+                
                 "Each ancestor appears exactly once, connected by multiple lines, if necessary.";
         } else if (WebsView.viewMode == "Repeats") {
             document.getElementById("ModeTitleArea").innerHTML =
-                "<H3 class='marginBottomZero' align=center>Repeat Ancestors Web for <div style='display:inline-block' id=IndiRepeatsName>" + rootPersonName + "</div></H3>" +
+                "<H3 class='marginBottomZero' align=center>Repeat Ancestors Web for  " +
+                rootPersonSelector +
+                "</div></H3>" +
                 "Only ancestors who appear more than once will be shown, connected by multiple lines to the web.";
-        } else if (WebsView.viewMode == "Indi") {
-            let rootPersonSelector =
-                "<select class=selectSimpleDropDown id=rootPersonSelector><option value=0>" +
-                rootPersonName +
-                "</option><option value=0>" +
-                "Mags Gaulden" +
-                "</option><option value=0>" +
-                "Chris Ferraiolo" +
-                "</option></select>";
 
+        } else if (WebsView.viewMode == "Common") {            
+            let allNames = "";
+            for (let n = 0; n < WebsView.listOfPrimePersons.length; n++) {
+                if (allNames > "") {
+                    allNames += " & ";
+                }
+                allNames += WebsView.PeopleList[WebsView.listOfPrimePersons[n]].getDisplayName();
+            }
+            
             document.getElementById("ModeTitleArea").innerHTML =
-                "<H3 class='marginBottomZero'>Ancestor Multi-Path Web to <div style='display:inline-block' id=IndiSingleName>" + rootPersonSelector + "</div><BR>from <div style='display:inline-block' id=IndiRepeaterName>No One</div></H3>" +
-                "<A onclick='WebsView.repeatAncestorNum--; WebsView.redraw();'><font size=+2>&larr;</font></A>" +
-                " [ <span id=IndiRepeaterNum>1 of 6</span> ] " +
-                "<A onclick='WebsView.repeatAncestorNum++; WebsView.redraw();'><font size=+2>&rarr;</font></A>";
+                "<H3 class='marginBottomZero' align=center>Common Ancestors Web for<br/>" +
+                allNames +
+                "</div></H3>" +
+                "Only ancestors who appear in the family trees of all starting individuals will be shown, connected by multiple lines to the web.";
+                        
+        } else if (WebsView.viewMode == "Singles") {
+            let allNames = "";
+            for (let n = 0; n < WebsView.listOfPrimePersons.length; n++) {
+                if (allNames > "") {
+                    allNames += " & ";
+                }
+                allNames += WebsView.PeopleList[WebsView.listOfPrimePersons[n]].getDisplayName();
+            }
+            
+            document.getElementById("ModeTitleArea").innerHTML =
+                "<H3 class='marginBottomZero' align=center>Ancestor-in-Common Web of<br/>" +
+                allNames +
+                "</div></H3>" +
+                "Only ancestors who appear in the family trees of all starting individuals will be shown, connected by multiple lines to the web.";
+
+             if (WebsView.yDir == 1) {
+                 document.getElementById("ModeTitleArea").innerHTML =
+                     "<H3 class='marginBottomZero'>Ancestor-in-Common Web<br/>to <div style='display:inline-block' id=IndiSingleName>" +
+                     allNames +
+                     "</div><BR/>from <div style='display:inline-block' id=CommonAncName>No One</div></H3>" +
+                     "<A style='cursor:pointer;' onclick='WebsView.repeatAncestorNum--; WebsView.redraw();'><font size=+2>&larr;</font></A>" +
+                     " [ <span id=CommonAncNum>1 of 6</span> ] " +
+                     "<A style='cursor:pointer;' onclick='WebsView.repeatAncestorNum++; WebsView.redraw();'><font size=+2>&rarr;</font></A>";
+             } else {
+                 document.getElementById("ModeTitleArea").innerHTML =
+                     "<H3 class='marginBottomZero'>Ancestor-in-Common Web " +
+                     "<br/>from <div style='display:inline-block' id=CommonAncName>No One</div>" +
+                     "<BR>to <div style='display:inline-block' id=IndiSingleName>" +
+                     allNames +
+                     "</div></H3>" +
+                     "<A style='cursor:pointer;' onclick='WebsView.repeatAncestorNum--; WebsView.redraw();'><font size=+2>&larr;</font></A>" +
+                     " [ <span id=CommonAncNum>1 of 6</span> ] " +
+                     "<A style='cursor:pointer;' onclick='WebsView.repeatAncestorNum++; WebsView.redraw();'><font size=+2>&rarr;</font></A>";
+             }    
+                        
+        } else if (WebsView.viewMode == "Indi") {
+            
+
+            if (WebsView.yDir == 1) {
+                document.getElementById("ModeTitleArea").innerHTML =
+                    "<H3 class='marginBottomZero'>Ancestor Multi-Path Web to <div style='display:inline-block' id=IndiSingleName>" +
+                    rootPersonSelector +
+                    "</div><BR>from <div style='display:inline-block' id=IndiRepeaterName>No One</div></H3>" +
+                    "<A style='cursor:pointer;' onclick='WebsView.repeatAncestorNum--; WebsView.redraw();'><font size=+2>&larr;</font></A>" +
+                    " [ <span id=IndiRepeaterNum>1 of 6</span> ] " +
+                    "<A style='cursor:pointer;' onclick='WebsView.repeatAncestorNum++; WebsView.redraw();'><font size=+2>&rarr;</font></A>";
+            } else {
+                document.getElementById("ModeTitleArea").innerHTML =
+                    "<H3 class='marginBottomZero'>Ancestor Multi-Path Web " +
+                    "from <div style='display:inline-block' id=IndiRepeaterName>No One</div>" +
+                    "<BR>to <div style='display:inline-block' id=IndiSingleName>" +
+                    rootPersonSelector +
+                    "</div></H3>" +
+                    "<A style='cursor:pointer;' onclick='WebsView.repeatAncestorNum--; WebsView.redraw();'><font size=+2>&larr;</font></A>" +
+                    " [ <span id=IndiRepeaterNum>1 of 6</span> ] " +
+                    "<A style='cursor:pointer;' onclick='WebsView.repeatAncestorNum++; WebsView.redraw();'><font size=+2>&rarr;</font></A>";
+            }
         }
         recalcAndDisplayNumGens();
         // redoWedgesForFanChart();
@@ -795,6 +1177,7 @@
         var self = this;
         self._load(id).then(function (person) {
             WebsView.primePerson = person;
+            WebsView.listOfPrimePersons = [person._data.Id];
             // console.log("WebsView.prototype.load : self._load(id) ");
             person._data.AhnNum = 1;
             thePeopleList.add(person);
@@ -817,7 +1200,7 @@
             }
             // console.log(".load person:",person);
 
-            WikiTreeAPI.getAncestors(id, 3, [
+            WikiTreeAPI.getAncestors(id, 5, [
                 "Id",
                 "Derived.BirthName",
                 "Derived.BirthNamePrivate",
@@ -979,6 +1362,13 @@
         return this;
     };
 
+    WebsView.switchRepeatAnc = function () {
+        let newRepeatNum = 1.0 * document.getElementById("selectRepeatAnc4IndiSELECT").value + 1;
+        console.log("SWITCHING to ", newRepeatNum);
+        WebsView.repeatAncestorNum = newRepeatNum;
+        WebsView.redraw();
+    };
+
     /**
      * Draw/redraw the tree
      */
@@ -986,18 +1376,61 @@
         console.log("Tree.prototype.draw");
         if (this.root) {
             // var nodes = thePeopleList.listAllPersons();// [];//this.tree.nodes(this.root);
-            var nodes = WebsView.myAhnentafel.listOfAncestorsForFanChart(WebsView.numGens2Display); // [];//this.tree.nodes(this.root);
+            var nodes = WebsView.myAhnentafel.listOfAncestorsForFanChart(
+                WebsView.numGens2Display,
+                WebsView.currentPrimeNum
+            ); // [];//this.tree.nodes(this.root);
+
+            if (WebsView.viewMode == "Common" || WebsView.viewMode == "Singles") {
+                recalculateCommonNames();
+                console.log("COMMON ANCESTORS:");
+                console.log(WebsView.listOfCommonAncestors);
+            }
+            if (WebsView.viewMode == "Common") {
+                console.log("WE ARE IN THE COMMON MODE HERE !!!!");
+                nodes = [];
+                for (let a = 0; a < WebsView.listOfAhnentafels.length; a++) {
+                    WebsView.listOfAhnentafels[a].update();
+                    let tmpNodes = WebsView.listOfAhnentafels[a].listOfAncestorsForFanChart(WebsView.numGens2Display);
+                    for (let n = 0; n < tmpNodes.length; n++) {
+                        tmpNodes[n]['p'] = a;
+                        tmpNodes[n]['newX'] += a * 500;
+                    }
+                    nodes = nodes.concat(tmpNodes);
+                }
+                
+                // nodes = WebsView.listOfAhnentafels[0]
+                //     .listOfAncestorsForFanChart()
+                //     .concat(WebsView.listOfAhnentafels[1].listOfAncestorsForFanChart() );
+                
+
+                console.log(" WebsView.listOfAhnentafels", WebsView.listOfAhnentafels);
+            }
 
             console.log("Tree.prototype.draw -> ready the NODES , count = ", nodes.length);
             console.log(" NODES = ", nodes);
 
             WebsView.listOfRepeatAncestors = WebsView.myAhnentafel.listOfRepeatAncestors(WebsView.numGens2Display);
             console.log("REPEAT ANCESTORS:", WebsView.listOfRepeatAncestors);
-
             if (WebsView.viewMode == "Indi") {
                 // SET UP the special sub-heading for Individual Ancestor web
-                document.getElementById("IndiRepeaterName").textContent =
-                    thePeopleList[WebsView.listOfRepeatAncestors[WebsView.repeatAncestorNum - 1].id].getDisplayName();
+                let repeatSelector =
+                    "<select style='cursor:pointer;' class=selectSimpleDropDown  id=selectRepeatAnc4IndiSELECT  onchange='WebsView.switchRepeatAnc();'>";
+                for (let r = 0; r < WebsView.listOfRepeatAncestors.length; r++) {
+                    const element = WebsView.listOfRepeatAncestors[r];
+                    let isSelected = "";
+                    if (WebsView.repeatAncestorNum - 1 == r) {
+                        isSelected = " selected ";
+                    }
+
+                    repeatSelector += "<option value=" + r + isSelected + ">";
+                    repeatSelector += thePeopleList[element.id].getDisplayName();
+                    repeatSelector += "</option>";
+                }
+                repeatSelector += "</select>";
+                document.getElementById("IndiRepeaterName").innerHTML = repeatSelector;
+                // document.getElementById("IndiRepeaterName").textContent =
+                //     thePeopleList[WebsView.listOfRepeatAncestors[WebsView.repeatAncestorNum - 1].id].getDisplayName();
                 document.getElementById("IndiRepeaterNum").textContent =
                     WebsView.repeatAncestorNum + " of " + WebsView.listOfRepeatAncestors.length;
             }
@@ -1021,7 +1454,7 @@
                 for (let repeaterIndex = startingRepeaterIndex; repeaterIndex <= endingRepeaterIndex; repeaterIndex++) {
                     for (let index = 0; index < WebsView.listOfRepeatAncestors[repeaterIndex].AhnNums.length; index++) {
                         const thisAhnNum = WebsView.listOfRepeatAncestors[repeaterIndex].AhnNums[index];
-                        console.log("Need to find the peeps in between AhnNum 1 and AhnNum ", thisAhnNum);
+                        // console.log("Need to find the peeps in between AhnNum 1 and AhnNum ", thisAhnNum);
                         setUseThisForNode(thisAhnNum, nodes);
                     }
                 }
@@ -1036,7 +1469,89 @@
 
                 nodes = newNodes;
                 console.log("AFter USE THIS loopage : ", nodes);
+                for (let n = 0; n < nodes.length; n++) {
+                    const element = nodes[n];
+                    if (element){
+                        console.log(element.p, element.ahnNum, element._data);
+                    }
+                }
             }
+
+            if (WebsView.viewMode == "Singles") {
+                // SET UP the special sub-heading for Individual Ancestor web
+                let repeatSelector =
+                    "<select style='cursor:pointer;' class=selectSimpleDropDown  id=selectRepeatAnc4IndiSELECT  onchange='WebsView.switchCommonAnc();'>";
+                for (let r = 0; r < WebsView.listOfCommonAncestors.length; r++) {
+                    const element = WebsView.listOfCommonAncestors[r];
+                    let isSelected = "";
+                    if (WebsView.commonAncestorNum - 1 == r) {
+                        isSelected = " selected ";
+                    }
+
+                    repeatSelector += "<option value=" + r + isSelected + ">";
+                    repeatSelector += thePeopleList[element.id].getDisplayName();
+                    repeatSelector += "</option>";
+                }
+                repeatSelector += "</select>";
+                document.getElementById("IndiRepeaterName").innerHTML = repeatSelector;
+                // document.getElementById("IndiRepeaterName").textContent =
+                //     thePeopleList[WebsView.listOfRepeatAncestors[WebsView.repeatAncestorNum - 1].id].getDisplayName();
+                document.getElementById("IndiRepeaterNum").textContent =
+                    WebsView.commonAncestorNum + " of " + WebsView.listOfCommonAncestors.length;
+            }
+
+           if (WebsView.viewMode == "Singles" || WebsView.viewMode == "Common") {
+               // Go through all the NODES and pick out ONLY those peeps who are in between the lines of this Individual Repeat Ancestor and the Central Perp
+
+               // First we set a flag to false for all nodes, then we'll turn it on for the ones we want later
+               for (let index = 0; index < nodes.length; index++) {
+                   const element = nodes[index];
+                   element["useThis"] = false;
+               }
+               console.log("WebsView.listOfCommonAncestors", WebsView.listOfCommonAncestors);
+               let startingRepeaterIndex = 0;
+               let endingRepeaterIndex = WebsView.listOfCommonAncestors.length - 1;
+
+               if (WebsView.viewMode == "Singles") {
+                   startingRepeaterIndex = WebsView.commonAncestorNum - 1;
+                   endingRepeaterIndex = WebsView.commonAncestorNum - 1;
+               }
+
+               for (let repeaterIndex = startingRepeaterIndex; repeaterIndex <= endingRepeaterIndex; repeaterIndex++) {
+                    // console.log(
+                    //     "Need to find Peeps belonging to Common Ancestor # ",
+                    //     repeaterIndex,
+                    //     WebsView.listOfCommonAncestors[repeaterIndex]
+                    // );
+                   for (let index = 0; index < WebsView.listOfCommonAncestors[repeaterIndex].Ahns0.length; index++) {
+                       const thisAhnNum = WebsView.listOfCommonAncestors[repeaterIndex].Ahns0[index];
+                    //    console.log("Need to find the peeps in between AhnNum 1 and COMMON AhnNum ", thisAhnNum);
+                       setUseThisForNode(thisAhnNum, nodes, 0);
+                   }
+                   for (let index = 0; index < WebsView.listOfCommonAncestors[repeaterIndex].Ahns1.length; index++) {
+                       const thisAhnNum = WebsView.listOfCommonAncestors[repeaterIndex].Ahns1[index];
+                    //    console.log("Need to find the peeps in between AhnNum 1 and COMMON#2 AhnNum ", thisAhnNum);
+                       setUseThisForNode(thisAhnNum, nodes, 1);
+                   }
+               }
+
+               let newNodes = [];
+               for (let index = 0; index < nodes.length; index++) {
+                   const element = nodes[index];
+                   if (element["useThis"] == true) {
+                       newNodes.push(element);
+                   }
+               }
+
+               nodes = newNodes;
+            //    console.log("AFter USE THIS loopage : ", nodes);
+               for (let n = 0; n < nodes.length; n++) {
+                   const element = nodes[n];
+                    if (element){
+                        console.log(element.p, element.ahnNum, element.person._data.BirthNamePrivate);
+                    }
+               }
+           }            
             // Calculate the new NODE positions (skooch together / adjust if needed for repeat ancestors)
             calculateNodePositions(nodes);
 
@@ -1117,7 +1632,7 @@
             let person = ancestorObject.person;
             // console.log("var node: function person ? " , person.getId(), ancestorObject.ahnNum);
             // return person;
-            return ancestorObject.ahnNum; //getId();
+            return ancestorObject.ahnNum + "p" + ancestorObject.p; //getId();
         });
 
         // console.log("Tree.prototpe.DRAW NODES - SINGULAR node:", node);
@@ -1146,7 +1661,7 @@
                 let person = ancestorObject.person; //thePeopleList[ person.id ];
                 // Calculate which Generation Number THIS node belongs to (0 = central person, 1 = parents, etc..)
                 let thisGenNum = Math.floor(Math.log2(ancestorObject.ahnNum));
-
+                // console.log("ancObj:", ancestorObject)
                 let borderColor = "rgba(102, 204, 102, .5)";
                 if (person.getGender() == "Male") {
                     // borderColor = "rgba(102, 102, 204, .5)";
@@ -1165,39 +1680,14 @@
                 return `
                 <div  id=wedgeBoxFor${
                     ancestorObject.ahnNum
-                } class="box" style="background-color: white ; border:1; padding: 0px;">
+                }p${ancestorObject.p} class="box" style="background-color: white ; border:1; padding: 0px;">
                 <div id=nameDivFor${
                     ancestorObject.ahnNum
-                } class="name" style="font-size: ${thisFontSize}px;" >${getNameAsPerSettings(person)}</div>
+                }p${ancestorObject.p} class="name" style="font-size: ${thisFontSize}px;" >${getNameAsPerSettings(person)}</div>
                 </div>
                 `;
 
-                // if (WebsView.viewMode == "Indi") {
-                // } else {
-                //     if (ancestorObject.ahnNum == 1) {
-                //         return `
-                //         <div  id=wedgeBoxFor${
-                //             ancestorObject.ahnNum
-                //         } class="box" style="background-color: white ; border:1; padding: 0px;">
-                //         <div id=nameDivFor${
-                //             ancestorObject.ahnNum
-                //         } class="name" style="font-size: 18px;" ><B>${getFirstName(person)}</B></div>
-                //         </div>
-                //         `;
-                //     } else {
-                //         return `
-                //         <div  id=wedgeBoxFor${
-                //             ancestorObject.ahnNum
-                //         } class="box" style="background-color: white ; border:1; padding: 0px;">
-                //         <div id=nameDivFor${
-                //             ancestorObject.ahnNum
-                //         } class="name" style="font-size: 14px;" ><B>${getFirstInitial(person)}${getLastInitial(
-                //             person
-                //         )}</B></div>
-                //             </div>
-                //             `;
-                //     }
-                // }
+                
             });
 
         // Show info popup on click
@@ -1230,7 +1720,7 @@
             d = ancestorObject.person; //thePeopleList[ person.id ];
 
             let thisNewX = ancestorObject.newX;
-            // console.log("NEW x :", thisNewX);
+            // console.log("NEW x :", thisNewX, ancestorObject.ahnNum, ancestorObject.p);
 
             let thisRadius = 270; // NEED TO CHANGE THIS FROM BEING HARD CODED EVENTUALLY
 
@@ -1242,13 +1732,10 @@
             let numSpotsThisGen = 2 ** thisGenNum;
             let numSpotsMaxGen = 2 ** (WebsView.numGens2Display - 1);
 
-            let theInfoBox = document.getElementById("wedgeBoxFor" + ancestorObject.ahnNum);
+            let theInfoBox = document.getElementById("wedgeBoxFor" + ancestorObject.ahnNum + "p" + ancestorObject.p);
             if (theInfoBox) {
                 let theBounds = theInfoBox; //.getBBox();
-                // console.log("POSITION node ", ancestorObject.ahnNum , theInfoBox, theInfoBox.parentNode, theInfoBox.parentNode.parentNode, theInfoBox.parentNode.parentNode.getAttribute('y'));
-                // theInfoBox.style.width = "300px";
-                // theInfoBox.style.x = "-190px";
-
+                
                 // CENTER the DIV and SET its width to 300px
                 theInfoBox.parentNode.parentNode.setAttribute("y", -16);
 
@@ -1258,11 +1745,11 @@
                 if (ancestorObject.ahnNum == 1) {
                     let ltrsNeeded = getFirstName(ancestorObject.person).length;
                     if (WebsView.viewMode == "Indi") {
-                        document.getElementById("nameDivFor" + ancestorObject.ahnNum).innerHTML = getFirstLNAB(
+                        document.getElementById("nameDivFor" + ancestorObject.ahnNum + "p" + ancestorObject.p).innerHTML = getFirstLNAB(
                             ancestorObject.person
                         );
                     } else {
-                        document.getElementById("nameDivFor" + ancestorObject.ahnNum).innerHTML = getFirstName(
+                        document.getElementById("nameDivFor" + ancestorObject.ahnNum + "p" + ancestorObject.p).innerHTML = getFirstName(
                             ancestorObject.person
                         );
                     }
@@ -1271,13 +1758,12 @@
                 } else {
                     // console.log(WebsView.myAhnentafel.listByPerson[ancestorObject.person._data.Id]);
                     let thisNameNow = getNameAsPerSettings(ancestorObject.person);
-                    document.getElementById("nameDivFor" + ancestorObject.ahnNum).innerHTML = thisNameNow;
+                    document.getElementById("nameDivFor" + ancestorObject.ahnNum + "p" + ancestorObject.p).innerHTML = thisNameNow;
                     let ltrsNeeded = thisNameNow.length;
                     theInfoBox.parentNode.parentNode.setAttribute("x", -8 * ltrsNeeded);
                     theInfoBox.parentNode.parentNode.setAttribute("width", 16 * ltrsNeeded);
 
-                    if (WebsView.myAhnentafel.listByPerson[ancestorObject.person._data.Id].length > 1) {
-                        // document.getElementById("nameDivFor" + ancestorObject.ahnNum).innerHTML = getNameAsPerSettings(ancestorObject.person)/*  + " " + getLastInitial(ancestorObject.person) */;
+                    if (WebsView.viewMode != "Common" && WebsView.myAhnentafel.listByPerson[ancestorObject.person._data.Id].length > 1) {
                         let theClr = "Yellow";
                         theInfoBox.parentNode.parentNode.setAttribute("x", -9 * ltrsNeeded);
                         theInfoBox.parentNode.parentNode.setAttribute("width", 18 * ltrsNeeded);
@@ -1291,6 +1777,46 @@
                         }
 
                         theInfoBox.setAttribute("style", "background-color: " + theClr + ";");
+                    } else if (WebsView.viewMode == "Common") {
+                        
+                        // WebsView.listOfCommonAncestors
+                        for (let ca = 0; ca < WebsView.listOfCommonAncestors.length; ca++) {
+                            const thisCommonAnc = WebsView.listOfCommonAncestors[ca];
+                            // if (thisCommonAnc) {
+                            //     console.log("THISCOMMONANC:", thisCommonAnc);
+                            // }
+                            if (thisCommonAnc && thisCommonAnc.Id == ancestorObject.person._data.Id) {
+                                // console.log("THISCOMMONANC:", thisCommonAnc);
+                                let theClr = "Yellow";
+
+                                if (thePeopleList[ancestorObject.person._data.Id]._data.theClr) {
+                                    theClr = thePeopleList[ancestorObject.person._data.Id]._data.theClr;
+                                }
+                                //  else {
+                                //     numRepeatAncestors++;
+                                //     theClr = ColourArray[numRepeatAncestors % ColourArray.length];
+                                //     repeatAncestorTracker[ancestorObject.person._data.Id] = theClr;
+                                // }
+
+                                theInfoBox.parentNode.parentNode.setAttribute("x", -9 * ltrsNeeded);
+                                theInfoBox.parentNode.parentNode.setAttribute("width", 18 * ltrsNeeded);
+                                theInfoBox.setAttribute("style", "background-color: " + theClr + ";");
+
+                                console.log("CLR for ", thisNameNow, " : ", theClr);
+                            } else {
+                                // console.log("thisCommonAnc:", thisCommonAnc);
+                            }
+                            
+                        }
+                        // if (repeatAncestorTracker[ancestorObject.person._data.Id]) {
+                        //     theClr = repeatAncestorTracker[ancestorObject.person._data.Id];
+                        // } else {
+                        //     numRepeatAncestors++;
+                        //     theClr = ColourArray[numRepeatAncestors % ColourArray.length];
+                        //     repeatAncestorTracker[ancestorObject.person._data.Id] = theClr;
+                        // }
+
+
                     }
                 }
 
@@ -1304,7 +1830,7 @@
 
             let X = thisNewX;
             if (ancestorObject.newY && ancestorObject.newY > 0) {
-                if (WebsView.viewMode == "Indi") {
+                if (WebsView.viewMode == "Indi" || WebsView.viewMode == "Common") {
                     thisGenNum = ancestorObject.newY;
                 } else {
                     thisGenNum = 1 + 2 * ancestorObject.newY - WebsView.repeatsStartAtGenNum;
@@ -1341,20 +1867,31 @@
         });
     };
 
-    function findPercentileForAhnNum(anAhnNum, orderedNodes) {
+    function findPercentileForAhnNum(anAhnNum, orderedNodes, primeNum= 0) {
         for (let index = 0; index < orderedNodes.length; index++) {
             const element = orderedNodes[index];
-            if (element[1] == anAhnNum) {
+            if (element[1] == anAhnNum && element[6] == primeNum) {
                 return element[0];
             }
         }
         return 0;
     }
 
-    function assignPercentileForAhnNum(anAhnNum, orderedNodes, newPercentile, lastGenNum) {
+
+    function findGenNumForAhnNumChild(anAhnNum, orderedNodes, primeNum = 0) {
         for (let index = 0; index < orderedNodes.length; index++) {
             const element = orderedNodes[index];
-            if (element[1] == anAhnNum) {
+            if (element[1] == anAhnNum && element[6] == primeNum) {
+                return  element[5];
+            }
+        }
+        return 0;
+    }
+
+    function assignPercentileForAhnNum(anAhnNum, orderedNodes, newPercentile, lastGenNum, primeNum = 0) {
+        for (let index = 0; index < orderedNodes.length; index++) {
+            const element = orderedNodes[index];
+            if (element[1] == anAhnNum && element[6] == primeNum) {
                 element[0] = newPercentile;
                 element[5] = lastGenNum;
                 return;
@@ -1362,23 +1899,119 @@
         }
     }
 
-    function setUseThisForNode(thisAhnNum, nodes) {
-        for (let index = Math.min(thisAhnNum, nodes.length - 1); index >= 0; index--) {
+    function autoPromoteParentsOf(anAhnNum, orderedNodes, primeNum = 0) {
+        let returnArray = [];
+        for (let index = 0; index < orderedNodes.length; index++) {
+            const element = orderedNodes[index];
+            if (element[1] == anAhnNum && element[6] == primeNum) {
+                let childPercentile = element[0]; // = newPercentile;
+                let childGenNum = element[5]; // = lastGenNum;
+
+                let dadAhnNum = anAhnNum * 2;
+                let momAhnNum = dadAhnNum + 1;
+                let foundDad = false;
+                let foundMom = false;
+
+                for (
+                    let parentIndex = 0;
+                    parentIndex < orderedNodes.length && (foundDad == false || foundMom == false);
+                    parentIndex++
+                ) {
+                    const parentElement = orderedNodes[parentIndex];
+                    let parentPercentile = parentElement[0]; // = newPercentile;
+                    let parentGenNum = parentElement[5]; // = lastGenNum;
+
+                    if (parentElement[1] == dadAhnNum && parentElement[6] == primeNum) {
+                        if (parentGenNum == 0 || true ) {
+                            // if parent Gen Num == 0, that means it only appears once - so - instead of leaving it in original position - reposition above child
+                            orderedNodes[parentIndex][0] = childPercentile - 0.0001;
+                            returnArray.push(parentIndex);
+                        }
+                        orderedNodes[parentIndex][5] = Math.max(parentGenNum, childGenNum + 1);
+                        foundDad = true;
+                    } else if (parentElement[1] == momAhnNum && parentElement[6] == primeNum) {
+                        if (parentGenNum == 0 || true ) {
+                            // if parent Gen Num == 0, that means it only appears once - so - instead of leaving it in original position - reposition above child
+                            orderedNodes[parentIndex][0] = childPercentile + 0.0001;
+                            returnArray.push(parentIndex);
+                        }
+                        orderedNodes[parentIndex][5] = Math.max(parentGenNum, childGenNum + 1);
+                        foundMom = true;
+                    }
+                }
+                return returnArray;
+            }
+        }
+    }
+
+    function setUseThisForNode(thisAhnNum, nodes, whichPrime = -1) {
+        let startingIndex = Math.min(thisAhnNum, nodes.length - 1);
+        if(whichPrime >= 0) { startingIndex = nodes.length - 1;}
+        for (let index = startingIndex; index >= 0; index--) {
             const element = nodes[index];
             if (element && element.ahnNum) {
+                // console.log("setUseThisForNode: element=",element)
                 if (element.ahnNum == thisAhnNum) {
-                    element["useThis"] = true;
-                    if (thisAhnNum > 1) {
-                        let newAhnNum = Math.floor(thisAhnNum / 2);
-                        setUseThisForNode(newAhnNum, nodes);
+                    if (whichPrime >= 0 && element.p != whichPrime) {
+                        // do nothing
+                        // console.log("do nothing ", whichPrime, element.p, element.ahnNum);
+                    } else {
+                        // console.log("do something ", whichPrime, element.p, element.ahnNum);
+                        element["useThis"] = true;
+                        // console.log("USE THIS:", element);
+                        if (thisAhnNum > 1) {
+                            let newAhnNum = Math.floor(thisAhnNum / 2);
+                            setUseThisForNode(newAhnNum, nodes, whichPrime);
+                        }
+                        return;
                     }
-                    return;
                 }
+
             } else {
                 console.log("Could not compute thisAhnNum:", thisAhnNum, "index:", index, "element:", element);
             }
         }
     }
+
+    function maxArrayValue( arr ) {
+        let maxVal = -9999999999;
+        arr.forEach(element => {
+            maxVal = Math.max(maxVal, element);
+        });
+        return maxVal;
+    }
+
+
+    function avgArrayValue(arr, arrAhns, maxAhnNum) {
+        let sumVal = 0;
+        let numVal = 0;
+        for (let i = 0; i < arr.length; i++) {
+            const thisArrVal = arr[i];
+            if (arrAhns[i] <= maxAhnNum) {
+                sumVal += thisArrVal;
+                numVal++;
+            }
+        }
+        
+        if (numVal > 0) {
+            return sumVal / numVal;
+        } else {
+            return 0;
+        }
+    }
+    
+    function numValuesInRange( arrAhns, maxAhnNum) {
+        
+        let numVal = 0;
+        for (let i = 0; i < arrAhns.length; i++) {
+            if (arrAhns[i] <= maxAhnNum) {
+                numVal++;
+            }
+        }
+        
+        return numVal;
+    }
+    
 
     function calculateNodePositions(nodes) {
         console.log("BIG CALCULATIONS SHOULD GO HERE to do NODE POSITIONING PROPER");
@@ -1386,22 +2019,31 @@
         let minWidthApart = 20;
         let maxAhnNum = 2 ** WebsView.numGens2Display - 1;
         let usedPercentiles = []; // to keep track of percentiles that have been used already so we don't duplicate and send two people to the same location!
+        let uniqueListById = [];
 
         for (let index = 0; index < nodes.length; index++) {
             const element = nodes[index];
             let thisAhnNum = element.ahnNum;
+            let pNum = 0; // person number -> for use with MultiPrimePerson layouts like COMMON and SINGLES
+            if (element.p && element.p >= 0) {
+                pNum = element.p;
+            }
             // Calculate which Generation Number THIS node belongs to (0 = central person, 1 = parents, etc..)
             let thisGenNum = 1 + Math.floor(Math.log2(thisAhnNum));
             // Calculate which position # (starting lower left and going clockwise around the Ancestor Webs) (0 is father's father's line, largest number is mother's mother's line)
             let thisPosNum = thisAhnNum - 2 ** (thisGenNum - 1);
 
-            let thisPercentile = (1 + 2 * thisPosNum) / 2 ** thisGenNum;
+            let thisPercentile = (1 + 2 * thisPosNum) / 2 ** thisGenNum + 1.0 * pNum;
             usedPercentiles.push(thisPercentile);
+
+            let thisID = element.person._data.Id;
 
             console.log(
                 thisAhnNum,
                 thisGenNum,
                 thisPosNum,
+                ":",
+                thisID,
                 ":",
                 1 + 2 * thisPosNum,
                 "/",
@@ -1409,10 +2051,44 @@
                 "=",
                 thisPercentile
             );
-            orderedNodes.push([thisPercentile, thisAhnNum, thisGenNum, thisPosNum, element, 0]);
+            orderedNodes.push([thisPercentile, thisAhnNum, thisGenNum, thisPosNum, element, 0, pNum]);
+            let theClr = "blue";
+            if (uniqueListById[thisID]) {
+                // add to arrays for thisID
+                uniqueListById[thisID].pNums.push (pNum);
+                uniqueListById[thisID].ahnNums.push (thisAhnNum);
+                uniqueListById[thisID].genNums.push (thisGenNum);
+                uniqueListById[thisID].percentiles.push (thisPercentile);   
+                
+                 if (repeatAncestorTracker[thisID]) {
+                     theClr = repeatAncestorTracker[thisID];
+                 } else {
+                     numRepeatAncestors++;
+                     theClr = ColourArray[numRepeatAncestors % ColourArray.length];
+                     repeatAncestorTracker[thisID] = theClr;
+                     uniqueListById[thisID].theClr = theClr;
+                }
+                thePeopleList[thisID]._data['theClr'] = theClr;
+
+            } else {
+                // create new entry for new ID
+                if (thisAhnNum % 2 == 1) {
+                    theClr = "red";
+                }
+                    uniqueListById[thisID] = {
+                        Id: thisID,
+                        pNums: [pNum],
+                        ahnNums: [thisAhnNum],
+                        genNums: [thisGenNum],
+                        percentiles: [thisPercentile],
+                        theClr : theClr
+                    };
+            }
+
         }
 
         console.log(WebsView.listOfRepeatAncestors);
+        console.log("UNIQUE LIST BY ID:", uniqueListById);
 
         if (WebsView.viewMode == "Unique" || WebsView.viewMode == "Indi" || WebsView.viewMode == "Repeats") {
             let minGenNum = 999;
@@ -1425,7 +2101,7 @@
                 for (let innerIndex = 0; innerIndex < element.AhnNums.length; innerIndex++) {
                     const anAhnNum = element.AhnNums[innerIndex];
                     if (anAhnNum <= maxAhnNum) {
-                        sumOfX += findPercentileForAhnNum(anAhnNum, orderedNodes);
+                        sumOfX += findPercentileForAhnNum(anAhnNum, orderedNodes, WebsView.currentPrimeNum);
                         let thisOnesGenNum = Math.floor(Math.log2(anAhnNum));
                         sumOfY += thisOnesGenNum;
                         minGenNum = Math.min(minGenNum, thisOnesGenNum);
@@ -1441,15 +2117,183 @@
                 }
                 usedPercentiles.push(newPercentile);
 
-                console.log("Final Percentile:", newPercentile, thePeopleList[element.id].getDisplayName(), avgGenNum);
+                // console.log("Final Percentile:", newPercentile, thePeopleList[element.id].getDisplayName(), avgGenNum);
 
                 for (let innerIndex = 0; innerIndex < element.AhnNums.length; innerIndex++) {
                     const anAhnNum = element.AhnNums[innerIndex];
-                    assignPercentileForAhnNum(anAhnNum, orderedNodes, newPercentile, avgGenNum);
+                    assignPercentileForAhnNum(
+                        anAhnNum,
+                        orderedNodes,
+                        newPercentile,
+                        avgGenNum,
+                        WebsView.currentPrimeNum
+                    );
                 }
             }
             WebsView.repeatsStartAtGenNum = minGenNum;
-        }
+        } else if (WebsView.viewMode == "Common" || WebsView.viewMode == "Singles") {
+            let minGenNum = 999;
+            let listOfKids2AutoPromoteParents = [];
+
+            uniqueListById.forEach(element => {
+                console.log("forEach : ", element.Id, element.genNums, element.ahnNums, element.pNums);
+                let thisPercentile = 0;
+                let thisGenNum = 0;
+                if (element.pNums.length == 1) {
+                    thisPercentile = element.percentiles[0];
+                    thisGenNum = element.genNums[0];
+                    
+                } else {
+                    thisPercentile = avgArrayValue(element.percentiles, element.ahnNums, maxAhnNum);
+                    thisGenNum = maxArrayValue(element.genNums);
+                    let doAutoPromoteParents = false;
+                    for (let uNum = 0; uNum  < element.pNums.length; uNum++) {
+                        const anAhnNum = element.ahnNums[uNum];
+                        const thisPNum = element.pNums[uNum];
+                        if (element.genNums[uNum] < WebsView.numGens2Display ) {
+                            doAutoPromoteParents = true;                            
+                        }
+                        assignPercentileForAhnNum(anAhnNum, orderedNodes, thisPercentile, thisGenNum, thisPNum);
+                    }
+                    if (doAutoPromoteParents == true) {
+                        listOfKids2AutoPromoteParents.push(element.Id);
+                    }
+                }
+                element.maxGenNum = thisGenNum;
+                element.thisPercentile = thisPercentile;
+            });
+            console.log("listOfKids2AutoPromoteParents (line 1947)  = ", listOfKids2AutoPromoteParents);
+             
+            let numReps = 0;
+            for (let i = 0; i < listOfKids2AutoPromoteParents.length && numReps < 1000; i++) {
+                numReps++;
+                const thisID = listOfKids2AutoPromoteParents[i];
+                let thisUniqueKid = uniqueListById[thisID];
+                let thisPerson = thePeopleList[thisID];
+
+                console.log("listOfKids2AutoPromoteParents : ", thisID, thisUniqueKid.maxGenNum, thisUniqueKid, thisPerson);
+
+                if (thisPerson && thisPerson._data &&  thisPerson._data.Mother && uniqueListById[thisPerson._data.Mother]) {
+                    let thisParent = uniqueListById[thisPerson._data.Mother];
+                    let thisGenNum = Math.max(thisParent.maxGenNum, 1.0 * thisUniqueKid.maxGenNum + 1.0 );
+                    let thisPercentile = thisParent.thisPercentile;
+
+                    //  if (thisParent.pNums.length == 1) {
+                     if (numValuesInRange(thisParent.ahnNums, maxAhnNum) == 1) {
+                         thisPercentile = thisUniqueKid.thisPercentile + 0.000001;
+                         assignPercentileForAhnNum(
+                             thisParent.ahnNums[0],
+                             orderedNodes,
+                             thisPercentile,
+                             thisGenNum,
+                             thisParent.pNums[0]
+                         );
+                     } else {
+                         let doAutoPromoteParents = false;
+
+                         let sumPercentile = 0;
+                         let numSums = 0;
+                         for (let uNum = 0; uNum < thisParent.pNums.length; uNum++) {
+                             const kidAhnNum = Math.floor(thisParent.ahnNums[uNum] / 2);
+                             const thisPNum = thisParent.pNums[uNum];
+                             const theChild = WebsView.listOfAhnentafels[thisPNum].list[kidAhnNum];
+                             if (theChild && uniqueListById[theChild] && uniqueListById[theChild].thisPercentile) {
+                                 sumPercentile += uniqueListById[theChild].thisPercentile;
+                                 numSums++;
+                                 console.log("listOfKids : Ma -> kid @ ", uniqueListById[theChild].thisPercentile);
+                             } else {
+                                console.log(
+                                    "listOfKids : Ma -> DOES NOT COMPUTE ",
+                                    kidAhnNum, thisPNum, WebsView.listOfAhnentafels[thisPNum] , theChild, 
+                                    uniqueListById[theChild]
+                                );
+                             }
+                             // assignPercentileForAhnNum(anAhnNum, orderedNodes, thisPercentile, thisGenNum, thisPNum);
+                         }
+                         if (numSums > 0) {
+                             thisPercentile = sumPercentile / numSums + 0.000001;
+                         }
+
+                         for (let uNum = 0; uNum < thisParent.pNums.length; uNum++) {
+                             const anAhnNum = thisParent.ahnNums[uNum];
+                             const thisPNum = thisParent.pNums[uNum];
+                            //  if (thisParent.genNums[uNum] < WebsView.numGens2Display) {
+                                 doAutoPromoteParents = true;
+                            //  }
+                             assignPercentileForAhnNum(anAhnNum, orderedNodes, thisPercentile, thisGenNum, thisPNum);
+                         }
+                         if (doAutoPromoteParents == true) {
+                             listOfKids2AutoPromoteParents.push(thisParent.Id);
+                         }
+                     }
+
+                }
+
+                if (thisPerson &&  thisPerson._data && thisPerson._data.Father && uniqueListById[thisPerson._data.Father]) {
+                    let thisParent = uniqueListById[thisPerson._data.Father];
+                    let thisGenNum = Math.max(thisParent.maxGenNum, 1.0 * thisUniqueKid.maxGenNum + 1.0);
+                    let thisPercentile = thisParent.thisPercentile;
+
+                    // if (thisParent.pNums.length == 1) {
+                    if (numValuesInRange(thisParent.ahnNums, maxAhnNum) == 1) {    
+                        thisPercentile = thisUniqueKid.thisPercentile - 0.000001;
+                        assignPercentileForAhnNum(
+                            thisParent.ahnNums[0],
+                            orderedNodes,
+                            thisPercentile,
+                            thisGenNum,
+                            thisParent.pNums[0]
+                        );
+                    } else {
+                        let doAutoPromoteParents = false;
+                        // re-calculate thisPercentile based on thisPercentile of the CHILDREN (since they themselves may have shifted position! Ha - did you ever think of that ??) //
+                        let sumPercentile = 0;
+                        let numSums = 0;
+                        for (let uNum = 0; uNum < thisParent.pNums.length; uNum++) {
+                            const kidAhnNum = Math.floor(thisParent.ahnNums[uNum] / 2);
+                            const thisPNum = thisParent.pNums[uNum];
+                            const theChild = WebsView.listOfAhnentafels[thisPNum].list[kidAhnNum];
+                            if (theChild && uniqueListById[theChild] && uniqueListById[theChild].thisPercentile) {
+                                console.log("listOfKids : Pa -> kid @ ", uniqueListById[theChild].thisPercentile);
+                                sumPercentile += uniqueListById[theChild].thisPercentile;
+                                numSums++;
+                            } else {
+                                console.log("listOfKids : Pa - DOES NOT COMPUTE");
+                            }
+                            // assignPercentileForAhnNum(anAhnNum, orderedNodes, thisPercentile, thisGenNum, thisPNum);
+                        }
+                        if (numSums > 0) {
+                            thisPercentile = sumPercentile / numSums - 0.000001;;
+                        }
+
+                        for (let uNum = 0; uNum < thisParent.pNums.length; uNum++) {
+                            const anAhnNum = thisParent.ahnNums[uNum];
+                            const thisPNum = thisParent.pNums[uNum];
+                            // if (thisParent.genNums[uNum] < WebsView.numGens2Display) {
+                                doAutoPromoteParents = true;
+                            // }
+                            assignPercentileForAhnNum(anAhnNum, orderedNodes, thisPercentile, thisGenNum, thisPNum);
+                        }
+                        if (doAutoPromoteParents == true) {
+                            listOfKids2AutoPromoteParents.push(thisParent.Id);
+                        }
+                    }
+                }
+
+               
+            }
+
+            if(numReps >= 1000) {
+                console.log("WARNING ::: !!!! - NUM REPS = ", numReps);
+            } else {
+                console.log("NUM REPS = ", numReps);
+            }
+            console.log("listOfKids2AutoPromoteParents : ", listOfKids2AutoPromoteParents);
+
+            
+
+        } // END of if (WebsView.viewMode == "Common" || WebsView.viewMode == "Singles" ) //
+
         let newOrder = orderedNodes.sort();
         console.log(newOrder);
         let maxWidth = (newOrder.length - 1) * minWidthApart;
@@ -1459,24 +2303,36 @@
 
         let lastX = 0;
         let lastPercentile = -1;
+        let xBuffer = 0;
+        let lastY = -1;
 
         for (let index = 0; index < newOrder.length; index++) {
             const newElement = newOrder[index];
             let thisPercentile = newElement[0];
             // let newX = maxWidth * ( thisPercentile - 0.5);
-            let newX = maxWidth * (index / (newOrder.length - 1) - 0.5);
+            let newX = maxWidth * ((index + xBuffer) / (newOrder.length - 1) - 0.5);
 
             // force the original dog, the CENTRAL PERSON to be in the MIDDLE horizontally, despite how lopsided the rest of the tree is.
             if (newElement[1] == 1) {
-                newX = 0;
+                if (WebsView.viewMode == "Common" || WebsView.viewMode == "Singles") {
+                    // do something different probably
+                } else {
+                    newX = 0;
+                }
             } else if (thisPercentile == lastPercentile) {
                 newX = lastX;
+            } else if (newElement[5] == lastY && newElement[5] > 0 && lastY > 0) {
+                xBuffer++;
+                newX = maxWidth * ((index + xBuffer) / (newOrder.length - 1) - 0.5);
             }
+
             lastPercentile = thisPercentile;
             lastX = newX;
+            lastY = newElement[5];
 
             newElement[4]["newX"] = newX;
             newElement[4]["newY"] = newElement[5];
+            console.log("Element # " + index, "newY = " + newElement[4]["newY"], newElement[4]);
         }
 
         if (WebsView.viewMode == "Indi" && WebsView.currentSettings["path_options_multiPathFormat"] == "smooth") {
@@ -1703,13 +2559,14 @@
             WebsView.viewMode = "Full";
         }
 
-        WebsView.currentPersonNum = 0;
+        WebsView.currentPrimeNum = 0;
         WebsView.repeatAncestorNum = -1;
+        WebsView.commonAncestorNum = -1;
 
-        WebsView.numGens2Display = 3;
-        WebsView.lastNumGens = 3;
-        WebsView.numGensRetrieved = 3;
-        WebsView.workingMaxNumGens = 4;
+        WebsView.numGens2Display = 5;
+        WebsView.lastNumGens = 5;
+        WebsView.numGensRetrieved = 5;
+        WebsView.workingMaxNumGens = 6;
 
         WebsView.myAhnentafel = new AhnenTafel.Ahnentafel();
         WebsView.listOfRepeatAncestors = [];
@@ -1959,5 +2816,111 @@
     // Shortcut function to quickly retrieve the primary person's first name
     function primaryPersonFirstName() {
         return getFirstName(thePeopleList[WebsView.myAhnentafel.list[1]]);
+    }
+
+    // NEW FUNCTIONS HERE to DEAL WITH MULTIPLE ROOT PEOPLE
+    
+    function loadNewPrimaryPerson(newPrimeID) {
+        console.log("Need to load a NEW PRIMARY ", newPrimeID, WebsView.numGensRetrieved + " generations");
+        //  let theListOfIDs = WebsView.myAhnentafel.listOfAncestorsToBeLoadedForLevel(newLevel);
+        // console.log(theListOfIDs);
+        if (newPrimeID.length == 0) {
+            console.log("WARNING WARNING - DANGER DANGER WILL ROBINSONS - EMPTY STRING SENT !");
+            //  clearMessageBelowButtonBar();
+            //  WebsView.myAhnentafel.update(); // update the AhnenTafel with the latest ancestors
+            //  WebsView.numGensRetrieved++;
+            //  WebsView.workingMaxNumGens = Math.min(WebsView.maxNumGens, WebsView.numGensRetrieved + 1);
+        } else {
+            WikiTreeAPI.getAncestors(
+                newPrimeID,
+                WebsView.numGensRetrieved,
+                [
+                    "Id",
+                    "Derived.BirthName",
+                    "Derived.BirthNamePrivate",
+                    "FirstName",
+                    "MiddleInitial",
+                    "LastNameAtBirth",
+                    "LastNameCurrent",
+                    "BirthDate",
+                    "BirthLocation",
+                    "DeathDate",
+                    "DeathLocation",
+                    "Mother",
+                    "Father",
+                    "Children",
+                    "Parents",
+                    "Spouses",
+                    "Siblings",
+                    "Photo",
+                    "Name",
+                    "Gender",
+                    "Privacy",
+                ],
+                { getParents: true }
+            ).then(function (result) {
+                if (result) {
+                    WebsView.theAncestors = result;
+                    console.log("theAncestors:", WebsView.theAncestors);
+                    console.log("WebsView.primePerson:", WebsView.primePerson);
+                    console.log("B4 loop - thePeopleList had ", thePeopleList.population());
+                    if (
+                        result &&
+                        WebsView.theAncestors &&
+                        WebsView.theAncestors.length > 0 &&
+                        WebsView.theAncestors[0]
+                    ) {
+                        let thisNewID = WebsView.theAncestors[0].Id;
+                        WebsView.listOfPrimePersons.push(thisNewID);
+                        WebsView.currentPrimeNum = WebsView.listOfPrimePersons.length - 1;
+
+                        for (let index = 0; index < WebsView.theAncestors.length; index++) {
+                            thePeopleList.add(WebsView.theAncestors[index]);
+                        }
+                        let thePerson = thePeopleList[thisNewID];
+                        WebsView.myAhnentafel.update(thePerson);
+                        WebsView.primePerson = thePerson;
+                        WebsView.myAncestorTree.draw();
+                        // self.drawTree(thePerson);
+                        clearMessageBelowButtonBar();
+                        console.log("AFT loop - thePeopleList had ", thePeopleList.population());
+
+                        while (WebsView.listOfAhnentafels.length < WebsView.listOfPrimePersons.length) {
+                            WebsView.listOfAhnentafels.push(new AhnenTafel.Ahnentafel());
+                        }
+
+                        for (let index = 0; index < WebsView.listOfPrimePersons.length; index++) {
+                            WebsView.listOfAhnentafels[index].update(
+                                WebsView.PeopleList[WebsView.listOfPrimePersons[index]]
+                            );
+                        }
+                        console.log("LIST of AHNENTAFELS:");
+                        for (let index = 0; index < WebsView.listOfPrimePersons.length; index++) {
+                            console.log(WebsView.listOfAhnentafels[index]);
+                        }
+
+                        recalculateCommonNames();
+                    }
+                    console.log("thePeopleList:", thePeopleList);
+                }
+            });
+        }
+    }
+
+    function recalculateCommonNames() {
+        console.log("RECALCULATING COMMMON PEEPS NOW");
+        WebsView.listOfCommonAncestors = [];
+        for (let p = 0; p < WebsView.listOfAhnentafels[0].listByPerson.length; p++) {
+            const element = WebsView.listOfAhnentafels[0].listByPerson[p];
+            const element1 = WebsView.listOfAhnentafels[1].listByPerson[p];
+            if (element && element.length > 0 && element1 && element1.length > 0 && WebsView.PeopleList[p]) {
+                let jointMin = Math.min(element, element1);
+                // console.log("Common ?? ", p, element, element1, WebsView.PeopleList[p], jointMin);
+                WebsView.listOfCommonAncestors.push({ Id: p, Ahns0: element, Ahns1: element1 });
+            }
+            
+        }
+        
+
     }
 })();
