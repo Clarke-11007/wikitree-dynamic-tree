@@ -6,6 +6,7 @@
  * and SheetJs (https://www.npmjs.com/package/xlsx)
  */
 export class CC7 {
+    static APP_ID = "CC7";
     static #helpText = `
         <x>[ x ]</x>
         <h2 style="text-align: center">About The CC7 Table</h2>
@@ -167,7 +168,7 @@ export class CC7 {
             </div>`
         );
 
-        const cc7Degree = Cookies.get("w_cc7Degree");
+        const cc7Degree = CC7.getCookie("w_cc7Degree");
         if (cc7Degree && cc7Degree > 0 && cc7Degree <= 7) {
             $("#getPeopleButton").text(`Get CC${cc7Degree}`);
             $("#getDegreeButton").text(`Get Degree ${cc7Degree} Only`);
@@ -178,7 +179,7 @@ export class CC7 {
             const theDegree = $("#cc7Degree").val();
             $("#getPeopleButton").text(`Get CC${theDegree}`);
             $("#getDegreeButton").text(`Get Degree ${theDegree} Only`);
-            Cookies.set("w_cc7Degree", theDegree, { expires: 365 });
+            CC7.setCookie("w_cc7Degree", theDegree, { expires: 365 });
         });
         $("#fileInput").on("change", CC7.handleFileUpload);
         $("#getPeopleButton").on("click", CC7.getConnectionsAction);
@@ -197,9 +198,7 @@ export class CC7 {
         $(".cc7Table #explanation x").click(function () {
             $(this).parent().slideUp();
         });
-        $("#explanation").draggable({
-            cursor: "grabbing",
-        });
+        $("#explanation").draggable();
 
         $("#getDegreeButton").on("click", CC7.getDegreeAction);
 
@@ -322,8 +321,8 @@ export class CC7 {
                 e.preventDefault();
 
                 dTable = $(".peopleTable").eq(0);
-                if (Cookies.get("w_wideTable") == "1") {
-                    Cookies.set("w_wideTable", 0, { expires: 365 });
+                if (CC7.getCookie("w_wideTable") == "1") {
+                    CC7.setCookie("w_wideTable", 0, { expires: 365 });
 
                     dTable.removeClass("wide");
                     dTable.insertBefore($("#tableContainer"));
@@ -337,7 +336,7 @@ export class CC7 {
                     });
                     dTable.draggable("disable");
                 } else {
-                    Cookies.set("w_wideTable", 1, { expires: 365 });
+                    CC7.setCookie("w_wideTable", 1, { expires: 365 });
                     $(this).text("Normal Table");
                     $("#peopleTable").attr("title", "Drag to scroll left or right");
                     // if ($("div.cc7Table").length == 0) {
@@ -404,8 +403,8 @@ export class CC7 {
                 }
             });
         }
-        if (Cookies.get("w_wideTable") == "1") {
-            Cookies.set("w_wideTable", 0, { expires: 365 });
+        if (CC7.getCookie("w_wideTable") == "1") {
+            CC7.setCookie("w_wideTable", 0, { expires: 365 });
             $("#wideTableButton").click();
         }
     }
@@ -1133,6 +1132,7 @@ export class CC7 {
         }
         if (fsReady == false) {
             WikiTreeAPI.postToAPI({
+                appId: CC7.APP_ID,
                 action: "getRelatives",
                 getSpouses: "1",
                 getChildren: "1",
@@ -1183,8 +1183,9 @@ export class CC7 {
         let fullDateFormat = "j M Y";
 
         let dateFormat;
-        if (Cookies.get("w_dateFormat")) {
-            dateFormat = Cookies.get("w_dateFormat");
+        const savedDateFormat = CC7.getCookie("w_dateFormat");
+        if (savedDateFormat) {
+            dateFormat = savedDateFormat;
         } else {
             dateFormat = 0;
             fullDateFormat = "M j, Y";
@@ -2908,6 +2909,7 @@ export class CC7 {
     static async getPeopleAction(keys, siblings, ancestors, descendants, nuclear, minGeneration, fields) {
         try {
             const result = await WikiTreeAPI.postToAPI({
+                appId: CC7.APP_ID,
                 action: "getPeople",
                 keys: keys,
                 siblings: siblings,
@@ -2932,6 +2934,7 @@ export class CC7 {
     static async getSomeRelatives(ids, fields = "*") {
         try {
             const result = await WikiTreeAPI.postToAPI({
+                appId: CC7.APP_ID,
                 action: "getRelatives",
                 keys: ids,
                 fields: fields,
@@ -3061,6 +3064,7 @@ export class CC7 {
             WTID = keys;
         }
         WikiTreeAPI.postToAPI({
+            appId: CC7.APP_ID,
             action: "getRelatives",
             keys: WTID,
             getParents: "1",
@@ -3395,6 +3399,7 @@ export class CC7 {
     static async getAncestors(id, depth, fields = "*") {
         try {
             const result = await WikiTreeAPI.postToAPI({
+                appId: CC7.APP_ID,
                 action: "getAncestors",
                 key: id,
                 depth: depth,
@@ -3417,5 +3422,13 @@ export class CC7 {
                 CC7.assignGeneration(persons, ancestor, generation + 1);
             }
         }
+    }
+
+    static getCookie(name) {
+        return WikiTreeAPI.cookie(name) || null;
+    }
+
+    static setCookie(name, value, options) {
+        return WikiTreeAPI.cookie(name, value, options);
     }
 }
