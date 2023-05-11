@@ -170,10 +170,10 @@ main {
   padding: 10px;
 }
 
-.popup-link:hover {
-  /*  text-decoration: none;
-  cursor: pointer;*/
-}
+/* .popup-link:hover {
+    text-decoration: none;
+  cursor: pointer; 
+} */
 
 .popup-box {
   border-style: solid;
