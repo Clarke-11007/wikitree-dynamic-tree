@@ -66,7 +66,6 @@
     var uniqueLocationsArray = [];
     var theSortedLocationsArray = [];
 
-
     var numRepeatAncestors = 0;
     var repeatAncestorTracker = new Object();
     var ColourArray = [
@@ -301,7 +300,7 @@
         [1, "MediumAquaMarine", "#66CDAA"],
         [1, "MediumSpringGreen", "#00FA9A"],
         [1, "MediumTurquoise", "#48D1CC"],
-        /*[1,"MintCream","#F5FFFA"],*/ [1, "MistyRose", "#FFE4E1"],
+        /*[1,"MintCream","#F5FFFA"],*/ [1, "MistyRose", "#FFE4E1"], 
         /*[1,"Moccasin","#FFE4B5"], */ [1, "NavajoWhite", "#FFDEAD"],
         [1, "OldLace", "#FDF5E6"],
         [1, "Orange", "#FFA500"],
@@ -882,9 +881,9 @@
             });
 
         /*
-            CREATE the Fractal Tree Backdrop
+            CREATE the Fractal Tree Backdrop 
             * Made of Lines connecting two ancestors together
-
+            
         */
 
         for (let index = 0; index < 2 ** FractalView.maxNumGens; index++) {
@@ -1094,7 +1093,6 @@
         specFamSelectorBR.style.display = "none";
     };
 
-
     function showRefreshInLegend() {
         let refreshLegendDIV = document.getElementById("refreshLegend");
         refreshLegendDIV.style.display = "block";
@@ -1158,7 +1156,6 @@
             theDIV.style.display = "none";
         }
     };
-
 
     FractalView.drawLines = function () {
         console.log("DRAWING LINES stuff should go here");
@@ -1307,7 +1304,7 @@
 
     function loadAncestorsAtLevel(newLevel) {
         // console.log("Need to load MORE peeps from Generation ", newLevel);
-        let theListOfIDs = FractalView.myAhnentafel.listOfAncestorsToBeLoadedForLevel(newLevel);
+        let theListOfIDs = FractalView.myAhnentafel.list[1]; //OfAncestorsToBeLoadedForLevel(newLevel);
         // console.log(theListOfIDs);
         if (theListOfIDs.length == 0) {
             // console.log("WARNING WARNING - DANGER DANGER WILL ROBINSONS")
@@ -1316,8 +1313,10 @@
             FractalView.numGensRetrieved++;
             FractalView.workingMaxNumGens = Math.min(FractalView.maxNumGens, FractalView.numGensRetrieved + 1);
         } else {
-            WikiTreeAPI.getRelatives(
-                APP_ID,
+            // WikiTreeAPI.getRelatives(
+            WikiTreeAPI.getPeople(
+                // (appId, IDs, fields, options = {}) 
+                APP_ID ,                
                 theListOfIDs,
                 [
                     "Id",
@@ -1325,6 +1324,12 @@
                     "Derived.BirthNamePrivate",
                     "FirstName",
                     "MiddleInitial",
+                    "MiddleName",
+                    "RealName",
+                    "IsLiving",
+                    "Nicknames",
+                    "Prefix",
+                    "Suffix",
                     "LastNameAtBirth",
                     "LastNameCurrent",
                     "BirthDate",
@@ -1343,15 +1348,17 @@
                     "Privacy",
                     "DataStatus",
                 ],
-                { getParents: true }
+                {   ancestors: newLevel,
+                    minGeneration: newLevel 
+                }
             ).then(function (result) {
                 if (result) {
                     // need to put in the test ... in case we get a null result, which we will eventually at the end of the line
                     FractalView.theAncestors = result;
                     // console.log("theAncestors:", FractalView.theAncestors);
                     // console.log("person with which to drawTree:", person);
-                    for (let index = 0; index < FractalView.theAncestors.length; index++) {
-                        thePeopleList.add(FractalView.theAncestors[index].person);
+                    for (const index in FractalView.theAncestors) {
+                        thePeopleList.add(FractalView.theAncestors[index]);
                     }
                     FractalView.myAhnentafel.update(); // update the AhnenTafel with the latest ancestors
                     FractalView.workingMaxNumGens = Math.min(FractalView.maxNumGens, FractalView.numGensRetrieved + 1);
@@ -1464,7 +1471,6 @@
         theDIV.style.display = "none";
     };
 
-
     /**
      * Load and display a person
      */
@@ -1494,38 +1500,102 @@
             }
             // console.log(".load person:",person);
 
-            WikiTreeAPI.getAncestors(APP_ID, id, 3, [
-                "Id",
-                "Derived.BirthName",
-                "Derived.BirthNamePrivate",
-                "FirstName",
-                "MiddleInitial",
-                "LastNameAtBirth",
-                "LastNameCurrent",
-                "BirthDate",
-                "BirthLocation",
-                "DeathDate",
-                "DeathLocation",
-                "Mother",
-                "Father",
-                "Children",
-                "Parents",
-                "Spouses",
-                "Siblings",
-                "Photo",
-                "Name",
-                "Gender",
-                "Privacy",
-                "DataStatus",
-            ]).then(function (result) {
+            // WikiTreeAPI.getAncestors(APP_ID, id, 3,
+            WikiTreeAPI.getPeople(
+                // (appId, IDs, fields, options = {})
+                APP_ID,
+                id,
+                [
+                    "Id",
+                    "Derived.BirthName",
+                    "Derived.BirthNamePrivate",
+                    "FirstName",
+                    "MiddleInitial",
+                    "MiddleName",
+                    "RealName",
+                    "IsLiving",
+                    "Nicknames",
+                    "Prefix",
+                    "Suffix",
+                    "LastNameAtBirth",
+                    "LastNameCurrent",
+                    "BirthDate",
+                    "BirthLocation",
+                    "DeathDate",
+                    "DeathLocation",
+                    "Mother",
+                    "Father",
+                    "Children",
+                    "Parents",
+                    "Spouses",
+                    "Siblings",
+                    "Photo",
+                    "Name",
+                    "Gender",
+                    "Privacy",
+                    "DataStatus",
+                ],
+                { ancestors: 3 }
+            ).then(function (result) {
                 FractalView.theAncestors = result;
                 console.log("theAncestors:", FractalView.theAncestors);
                 console.log("person with which to drawTree:", person);
-                for (let index = 0; index < FractalView.theAncestors.length; index++) {
-                    const element = FractalView.theAncestors[index];
-                    thePeopleList.add(FractalView.theAncestors[index]);
+                for (const ancNum in FractalView.theAncestors) {
+                    let thePerson = FractalView.theAncestors[ancNum];
+                    if (thePerson.Id < 0) {
+                        thePerson.Id = 100 - thePerson.Id;
+                        thePerson["Name"] = "Private-" + thePerson.Id;
+                        thePerson["FirstName"] = "Private";
+                        thePerson["LastNameAtBirth"] = "TBD!";
+                    }
+                    if (thePerson.Mother < 0) {
+                        thePerson.Mother = 100 - thePerson.Mother;
+                    }
+                    if (thePerson.Father < 0) {
+                        thePerson.Father = 100 - thePerson.Father;
+                    }
+                    thePeopleList.add(thePerson);
                 }
+
+                person._data.Father = FractalView.theAncestors[id].Father;
+                person._data.Mother = FractalView.theAncestors[id].Mother;
+
                 FractalView.myAhnentafel.update(person);
+
+                let relativeName = [
+                    "kid",
+                    "self",
+                    "Father",
+                    "Mother",
+                    "Grandfather",
+                    "Grandmother",
+                    "Grandfather",
+                    "Grandmother",
+                    "Great-Grandfather",
+                    "Great-Grandmother",
+                    "Great-Grandfather",
+                    "Great-Grandmother",
+                    "Great-Grandfather",
+                    "Great-Grandmother",
+                    "Great-Grandfather",
+                    "Great-Grandmother",
+                ];
+
+                // GO through the first chunk  (up to great-grandparents) - and swap out TBD! for their relaionship names
+                for (var a = 1; a < 16; a++) {
+                    let thisPeep = thePeopleList[FractalView.myAhnentafel.list[a]];
+                    // console.log("Peep ",a, thisPeep);
+                    if (thisPeep._data["LastNameAtBirth"] == "TBD!") {
+                        thisPeep._data["LastNameAtBirth"] = relativeName[a];
+                        if (a % 2 == 0) {
+                            thisPeep._data["Gender"] = "Male";
+                        } else {
+                            thisPeep._data["Gender"] = "Female";
+                        }
+                        // console.log("FOUND a TBD!", thisPeep);
+                    }
+                }
+
                 self.drawTree(person);
                 clearMessageBelowButtonBar();
                 populateXAncestorList(1);
@@ -1569,6 +1639,12 @@
             "Derived.BirthNamePrivate",
             "FirstName",
             "MiddleInitial",
+            "MiddleName",
+            "RealName",
+            "IsLiving",
+            "Nicknames",
+            "Prefix",
+            "Suffix",
             "LastNameAtBirth",
             "LastNameCurrent",
             "BirthDate",
@@ -1944,7 +2020,7 @@
 
             if (theInfoBox) {
                 let theBounds = theInfoBox; //.getBBox();
-                let theOutsideClr = ""; 
+                let theOutsideClr = "";
 
                 theInfoBoxParentDIV = theInfoBox.parentNode;
                 // console.log("POSITION node ", ancestorObject.ahnNum , theInfoBox, theInfoBox.parentNode, theInfoBox.parentNode.parentNode, theInfoBox.parentNode.parentNode.getAttribute('y'));
@@ -1958,7 +2034,6 @@
 
                 // CHECK for LOCATION SPECIFIC DOUBLE-COLOURS SETTINGS
                 if (settingForColourBy == "Location" && settingForSpecifyByLocation == "BirthDeathCountry") {
-
                     let locString = ancestorObject.person._data["BirthCountry"];
                     let clrIndex = theSortedLocationsArray.indexOf(locString);
                     theOutsideClr = getColourFromSortedLocationsIndex(clrIndex);
@@ -1998,9 +2073,7 @@
                 }
                 theInfoBox.parentNode.setAttribute(
                     "style",
-                    "background-color: " +
-                        theOutsideClr +
-                        "; padding:15px; border: solid green; border-radius: 15px;"
+                    "background-color: " + theOutsideClr + "; padding:15px; border: solid green; border-radius: 15px;"
                 );
             }
 
@@ -2100,7 +2173,7 @@
 
             let luminance = 0.501;
             let thisBkgdClr = thisDivsColour; //"white";
-            
+
             let txtClrSetting = FractalView.currentSettings["colour_options_textColour"];
             console.log("TextClrSetting = ", txtClrSetting);
             let theTextFontClr = "fontBlack";
@@ -2276,7 +2349,6 @@
     // Inheritance
     AncestorTree.prototype = Object.create(Tree.prototype);
 
-
     /**
      * Generate a string representing this person's lifespan 0000 - 0000
      */
@@ -2292,7 +2364,7 @@
                 monthBirth = parseInt(partsBirth[1], 10),
                 dayBirth = parseInt(partsBirth[2], 10);
         }
-        
+
         let DeathDate = person.getDeathDate();
         if (DeathDate && /\d{4}-\d{2}-\d{2}/.test(DeathDate)) {
             var partsDeath = DeathDate.split("-"),
@@ -2300,11 +2372,11 @@
                 monthDeath = parseInt(partsDeath[1], 10),
                 dayDeath = parseInt(partsDeath[2], 10);
         }
-        
+
         if (yearBirth > 0 && yearDeath > 0) {
             age = yearDeath - yearBirth;
             if (monthBirth > 0 && monthDeath > 0 && monthBirth > monthDeath) {
-                console.log("died before birthday in final year")
+                console.log("died before birthday in final year");
                 age -= 1;
             } else if (
                 monthBirth > 0 &&
@@ -2317,9 +2389,6 @@
                 console.log("died before birthday in FINAL MONTH");
                 age -= 1;
             }
-
-
-
         }
 
         return age;
@@ -2402,7 +2471,6 @@
             return dateString;
         }
     }
-
 
     function fillOutFamilyStatsLocsForAncestors() {
         for (let index = 1; index < 2 ** FractalView.maxNumGens; index++) {
@@ -2494,7 +2562,6 @@
             }
         }
     }
-
 
     /**
      * Extract the LifeSpan BBBB - DDDD from a person
@@ -2734,7 +2801,7 @@
 
         let theName = "";
 
-        if (FractalView.currentSettings["name_options_firstName"] == "FirstNameAtBirth") {
+        if (FractalView.currentSettings["name_options_firstName"] == "FirstNameAtBirth" && person._data.FirstName) {
             theName = person._data.FirstName;
         } else {
             theName = person._data.RealName;
@@ -2822,377 +2889,376 @@
         return inp.replace(/ /g, "_");
     }
 
-     var thisTextColourArray = {};
-     function updateLegendIfNeeded() {
-         console.log("DOING updateLegendIfNeeded");
-         let settingForColourBy = FractalView.currentSettings["colour_options_colourBy"];
-         let settingForSpecifyByFamily = FractalView.currentSettings["colour_options_specifyByFamily"];
-         let settingForSpecifyByLocation = FractalView.currentSettings["colour_options_specifyByLocation"];
-         let legendDIV = document.getElementById("legendDIV");
-         let innerLegendDIV = document.getElementById("innerLegend");
-        console.log("settingForSpecifyByLocation:",  settingForSpecifyByLocation);
-         let fontList = [
-             "Black",
-             "DarkGreen",
-             "DarkRed",
-             "DarkBlue",
-             "Brown",
-             "White",
-             "Yellow",
-             "Lime",
-             "Pink",
-             "Cyan",
-         ];
-         let txtClrSetting = FractalView.currentSettings["colour_options_textColour"];
+    var thisTextColourArray = {};
+    function updateLegendIfNeeded() {
+        console.log("DOING updateLegendIfNeeded");
+        let settingForColourBy = FractalView.currentSettings["colour_options_colourBy"];
+        let settingForSpecifyByFamily = FractalView.currentSettings["colour_options_specifyByFamily"];
+        let settingForSpecifyByLocation = FractalView.currentSettings["colour_options_specifyByLocation"];
+        let legendDIV = document.getElementById("legendDIV");
+        let innerLegendDIV = document.getElementById("innerLegend");
+        console.log("settingForSpecifyByLocation:", settingForSpecifyByLocation);
+        let fontList = [
+            "Black",
+            "DarkGreen",
+            "DarkRed",
+            "DarkBlue",
+            "Brown",
+            "White",
+            "Yellow",
+            "Lime",
+            "Pink",
+            "Cyan",
+        ];
+        let txtClrSetting = FractalView.currentSettings["colour_options_textColour"];
 
-         thisTextColourArray = {};
-         let thisColourArray = getColourArray();
+        thisTextColourArray = {};
+        let thisColourArray = getColourArray();
 
-         if (settingForColourBy == "Family") {
-             // console.log("TextClrSetting = ", txtClrSetting);
+        if (settingForColourBy == "Family") {
+            // console.log("TextClrSetting = ", txtClrSetting);
 
-             let innerCode = "";
-             let clrSwatchArray = [];
-             for (let index = 0; index < 12; index++) {
-                 let theTextFontClr = "Black";
-                 let luminance = calcLuminance(thisColourArray[index]);
-                 if (txtClrSetting == "B&W") {
-                     theTextFontClr = luminance > 0.179 ? "Black" : "White";
-                 } else if (txtClrSetting == "alt") {
-                     theTextFontClr = fontList[(luminance > 0.179 ? 0 : 5) + (index % 5)]; // Math.max(0, Math.min(4, Math.round(5 * Math.random())))];
-                 } else {
-                     theTextFontClr = "Black"; // not really needed ... but for completeness sake, and to make sure there's a legit value
-                 }
-                 console.log("FamTxtClr: Bkgd:", thisColourArray[index], "lum:", luminance, "txt:", theTextFontClr);
-                 thisTextColourArray[thisColourArray[index].toUpperCase()] = theTextFontClr;
+            let innerCode = "";
+            let clrSwatchArray = [];
+            for (let index = 0; index < 12; index++) {
+                let theTextFontClr = "Black";
+                let luminance = calcLuminance(thisColourArray[index]);
+                if (txtClrSetting == "B&W") {
+                    theTextFontClr = luminance > 0.179 ? "Black" : "White";
+                } else if (txtClrSetting == "alt") {
+                    theTextFontClr = fontList[(luminance > 0.179 ? 0 : 5) + (index % 5)]; // Math.max(0, Math.min(4, Math.round(5 * Math.random())))];
+                } else {
+                    theTextFontClr = "Black"; // not really needed ... but for completeness sake, and to make sure there's a legit value
+                }
+                console.log("FamTxtClr: Bkgd:", thisColourArray[index], "lum:", luminance, "txt:", theTextFontClr);
+                thisTextColourArray[thisColourArray[index].toUpperCase()] = theTextFontClr;
 
-                 clrSwatchArray.push(
-                     "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
-                         thisColourArray[index] +
-                         ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15 fill='" +
-                         theTextFontClr +
-                         "'>A</text></svg>"
-                 );
-             }
+                clrSwatchArray.push(
+                    "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
+                        thisColourArray[index] +
+                        ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15 fill='" +
+                        theTextFontClr +
+                        "'>A</text></svg>"
+                );
+            }
 
-             if (settingForSpecifyByFamily == "age") {
-                 clrSwatchUNK =
-                     "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
-                     "white" +
-                     ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15>A</text></svg>";
-                 clrSwatchLIVING =
-                     "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
-                     "lime" +
-                     ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15>A</text></svg>";
-                 innerCode = clrSwatchUNK + " age unknown <br/>" + clrSwatchLIVING + " still living";
-                 for (let index = 0; index < 10; index++) {
-                     innerCode += "<br/>" + clrSwatchArray[index + 1] + " " + index * 10 + " - " + (index * 10 + 9);
-                 }
-                 innerCode += "<br/>" + clrSwatchArray[11] + " over 100";
-             }
+            if (settingForSpecifyByFamily == "age") {
+                clrSwatchUNK =
+                    "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
+                    "white" +
+                    ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15>A</text></svg>";
+                clrSwatchLIVING =
+                    "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
+                    "lime" +
+                    ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15>A</text></svg>";
+                innerCode = clrSwatchUNK + " age unknown <br/>" + clrSwatchLIVING + " still living";
+                for (let index = 0; index < 10; index++) {
+                    innerCode += "<br/>" + clrSwatchArray[index + 1] + " " + index * 10 + " - " + (index * 10 + 9);
+                }
+                innerCode += "<br/>" + clrSwatchArray[11] + " over 100";
+            }
             //  console.log("thisTextColourArray", thisTextColourArray);
-             innerLegendDIV.innerHTML = innerCode;
-             legendDIV.style.display = "block";
-         } else if (settingForColourBy == "Location") {
-             // thisTextColourArray = {};
-             // let thisColourArray = getColourArray();
-             let innerCode = "";
-             // LET's FIRST setup the ARRAY of UNIQUE LOCATIONS
-             uniqueLocationsArray = [];
-             for (let index = 1; index < 2 ** FractalView.maxNumGens; index++) {
-                 const thisPerp = thePeopleList[FractalView.myAhnentafel.list[index]];
-                 if (thisPerp) {
-                     if (
-                         settingForSpecifyByLocation == "BirthDeathCountry" ||
-                         settingForSpecifyByLocation == "DeathBirthCountry"
-                     ) {
-                         let thisLoc = thisPerp._data["BirthCountry"];
-                         if (thisLoc && uniqueLocationsArray.indexOf(thisLoc) == -1) {
-                             uniqueLocationsArray.push(thisLoc);
-                         }
-                         thisLoc = thisPerp._data["DeathCountry"];
-                         if (thisLoc && uniqueLocationsArray.indexOf(thisLoc) == -1) {
-                             uniqueLocationsArray.push(thisLoc);
-                         }
-                     } else {
-                         let thisLoc = thisPerp._data[settingForSpecifyByLocation];
-                         if (thisLoc && uniqueLocationsArray.indexOf(thisLoc) == -1) {
-                             uniqueLocationsArray.push(thisLoc);
-                         }
-                     }
-                 }
-             }
-             let revLocArray = reverseCommaArray(uniqueLocationsArray, true);
-             console.log(revLocArray);
-             revLocArray.sort();
-             uniqueLocationsArray = reverseCommaArray(revLocArray, false);
+            innerLegendDIV.innerHTML = innerCode;
+            legendDIV.style.display = "block";
+        } else if (settingForColourBy == "Location") {
+            // thisTextColourArray = {};
+            // let thisColourArray = getColourArray();
+            let innerCode = "";
+            // LET's FIRST setup the ARRAY of UNIQUE LOCATIONS
+            uniqueLocationsArray = [];
+            for (let index = 1; index < 2 ** FractalView.maxNumGens; index++) {
+                const thisPerp = thePeopleList[FractalView.myAhnentafel.list[index]];
+                if (thisPerp) {
+                    if (
+                        settingForSpecifyByLocation == "BirthDeathCountry" ||
+                        settingForSpecifyByLocation == "DeathBirthCountry"
+                    ) {
+                        let thisLoc = thisPerp._data["BirthCountry"];
+                        if (thisLoc && uniqueLocationsArray.indexOf(thisLoc) == -1) {
+                            uniqueLocationsArray.push(thisLoc);
+                        }
+                        thisLoc = thisPerp._data["DeathCountry"];
+                        if (thisLoc && uniqueLocationsArray.indexOf(thisLoc) == -1) {
+                            uniqueLocationsArray.push(thisLoc);
+                        }
+                    } else {
+                        let thisLoc = thisPerp._data[settingForSpecifyByLocation];
+                        if (thisLoc && uniqueLocationsArray.indexOf(thisLoc) == -1) {
+                            uniqueLocationsArray.push(thisLoc);
+                        }
+                    }
+                }
+            }
+            let revLocArray = reverseCommaArray(uniqueLocationsArray, true);
+            console.log(revLocArray);
+            revLocArray.sort();
+            uniqueLocationsArray = reverseCommaArray(revLocArray, false);
 
-             clrSwatchUNK =
-                 "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
-                 "white" +
-                 ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15>A</text></svg>";
+            clrSwatchUNK =
+                "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
+                "white" +
+                ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15>A</text></svg>";
 
-             //     let rgbArray = hslToRgb(255, 1, 0.5);
-             // console.log("hslToRgb:", rgbArray );
-             // console.log("RGB = ", fractionToHexChar(rgbArray[0]) );
-             // console.log("RGB = ", fractionToHexChar(rgbArray[1]) );
-             // console.log("RGB = ", fractionToHexChar(rgbArray[2]) );
+            //     let rgbArray = hslToRgb(255, 1, 0.5);
+            // console.log("hslToRgb:", rgbArray );
+            // console.log("RGB = ", fractionToHexChar(rgbArray[0]) );
+            // console.log("RGB = ", fractionToHexChar(rgbArray[1]) );
+            // console.log("RGB = ", fractionToHexChar(rgbArray[2]) );
 
-             innerCode += "<br/>" + clrSwatchUNK + " unknown";
+            innerCode += "<br/>" + clrSwatchUNK + " unknown";
 
-             for (let index = 0; index < uniqueLocationsArray.length; index++) {
-                 let hue = Math.round((360 * index) / uniqueLocationsArray.length);
-                 let sat = 1 - (index % 2) * -0.15;
-                 let lit = 0.5 + ((index % 7) - 3) * 0.05;
-                 let thisClr = hslToRGBhex(hue, sat, lit);
-                 let theTextFontClr = "Black";
+            for (let index = 0; index < uniqueLocationsArray.length; index++) {
+                let hue = Math.round((360 * index) / uniqueLocationsArray.length);
+                let sat = 1 - (index % 2) * -0.15;
+                let lit = 0.5 + ((index % 7) - 3) * 0.05;
+                let thisClr = hslToRGBhex(hue, sat, lit);
+                let theTextFontClr = "Black";
                 //  console.log("Compare CLRS: ", thisClr, " vs ", thisColourArray[index]);
-                 let luminance = calcLuminance(thisColourArray[index]);
-                 if (txtClrSetting == "B&W") {
-                     theTextFontClr = luminance > 0.179 ? "Black" : "White";
-                     if (lit < 0.4) {
-                         theTextFontClr = "White";
-                     } else if (lit >= 0.6) {
-                         theTextFontClr = "Black";
-                     }
-                     if (hue < 20 || (hue > 200 && hue < 300) || hue > 340) {
-                         theTextFontClr = "White";
-                     } else if (hue > 60 && hue < 170) {
-                         theTextFontClr = "Black";
-                     }
-                 } else if (txtClrSetting == "alt") {
-                     let darkLight = luminance > 0.179 ? 0 : 5;
-                     if (lit < 0.4) {
-                         darkLight = 5;
-                     } else if (lit >= 0.6) {
-                         darkLight = 0;
-                     }
-                     if (hue < 20 || (hue > 200 && hue < 295) || hue > 340) {
-                         darkLight = 5;
-                     } else if (hue > 305 && hue < 330) {
-                         if (lit <= 0.4) {
-                             darkLight = 5;
-                         } else {
-                             darkLight = 0;
-                         }
-                     } else if (hue > 60 && hue < 170) {
-                         darkLight = 0;
-                     }
-                     theTextFontClr = fontList[darkLight + (index % 5)]; // //Math.max(0, Math.min(4, Math.round(5 * Math.random())))
-                 } else {
-                     theTextFontClr = "Black"; // not really needed ... but for completeness sake, and to make sure there's a legit value
-                 }
+                let luminance = calcLuminance(thisColourArray[index]);
+                if (txtClrSetting == "B&W") {
+                    theTextFontClr = luminance > 0.179 ? "Black" : "White";
+                    if (lit < 0.4) {
+                        theTextFontClr = "White";
+                    } else if (lit >= 0.6) {
+                        theTextFontClr = "Black";
+                    }
+                    if (hue < 20 || (hue > 200 && hue < 300) || hue > 340) {
+                        theTextFontClr = "White";
+                    } else if (hue > 60 && hue < 170) {
+                        theTextFontClr = "Black";
+                    }
+                } else if (txtClrSetting == "alt") {
+                    let darkLight = luminance > 0.179 ? 0 : 5;
+                    if (lit < 0.4) {
+                        darkLight = 5;
+                    } else if (lit >= 0.6) {
+                        darkLight = 0;
+                    }
+                    if (hue < 20 || (hue > 200 && hue < 295) || hue > 340) {
+                        darkLight = 5;
+                    } else if (hue > 305 && hue < 330) {
+                        if (lit <= 0.4) {
+                            darkLight = 5;
+                        } else {
+                            darkLight = 0;
+                        }
+                    } else if (hue > 60 && hue < 170) {
+                        darkLight = 0;
+                    }
+                    theTextFontClr = fontList[darkLight + (index % 5)]; // //Math.max(0, Math.min(4, Math.round(5 * Math.random())))
+                } else {
+                    theTextFontClr = "Black"; // not really needed ... but for completeness sake, and to make sure there's a legit value
+                }
                 //  console.log("CLR:", hue, sat, lit, thisClr, luminance, theTextFontClr);
-                 thisTextColourArray[thisClr.toUpperCase()] = theTextFontClr;
-                 let clrSwatch =
-                     "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
-                     thisClr +
-                     ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15 fill='" +
-                     theTextFontClr +
-                     "'>A</text></svg>";
-                 // let clrSwatch =
-                 //     "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
-                 //     thisColourArray[index % thisColourArray.length] +
-                 //     ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15>A</text></svg>";
-                 innerCode += "<br/>" + clrSwatch + " " + uniqueLocationsArray[index];
-                 //  +
-                 // " H:" +
-                 // Math.round(hue) +
-                 // " lit:" +
-                 // lit +
-                 // " L:" +
-                 // luminance;
-             }
+                thisTextColourArray[thisClr.toUpperCase()] = theTextFontClr;
+                let clrSwatch =
+                    "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
+                    thisClr +
+                    ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15 fill='" +
+                    theTextFontClr +
+                    "'>A</text></svg>";
+                // let clrSwatch =
+                //     "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
+                //     thisColourArray[index % thisColourArray.length] +
+                //     ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15>A</text></svg>";
+                innerCode += "<br/>" + clrSwatch + " " + uniqueLocationsArray[index];
+                //  +
+                // " H:" +
+                // Math.round(hue) +
+                // " lit:" +
+                // lit +
+                // " L:" +
+                // luminance;
+            }
 
-             theSortedLocationsArray = uniqueLocationsArray;
+            theSortedLocationsArray = uniqueLocationsArray;
             //  console.log(theSortedLocationsArray);
-             // console.log("LOCS not sorted we think ...");
-             // console.log(uniqueLocationsArray);
+            // console.log("LOCS not sorted we think ...");
+            // console.log(uniqueLocationsArray);
 
-             // console.log("LOCS yes SORTED we think ...");
-             // console.log(sortedLocs);
-             innerLegendDIV.innerHTML = innerCode;
-             legendDIV.style.display = "block";
-         } else {
-             for (let index = 0; index < thisColourArray.length; index++) {
-                 let theTextFontClr = "Black";
-                 let luminance = calcLuminance(thisColourArray[index]);
-                 if (txtClrSetting == "B&W") {
-                     theTextFontClr = luminance > 0.179 ? "Black" : "White";
-                 } else if (txtClrSetting == "alt") {
-                     theTextFontClr = fontList[(luminance > 0.179 ? 0 : 5) + (index % 5)]; // Math.max(0, Math.min(4, Math.round(5 * Math.random())))];
-                 } else {
-                     theTextFontClr = "Black"; // not really needed ... but for completeness sake, and to make sure there's a legit value
-                 }
+            // console.log("LOCS yes SORTED we think ...");
+            // console.log(sortedLocs);
+            innerLegendDIV.innerHTML = innerCode;
+            legendDIV.style.display = "block";
+        } else {
+            for (let index = 0; index < thisColourArray.length; index++) {
+                let theTextFontClr = "Black";
+                let luminance = calcLuminance(thisColourArray[index]);
+                if (txtClrSetting == "B&W") {
+                    theTextFontClr = luminance > 0.179 ? "Black" : "White";
+                } else if (txtClrSetting == "alt") {
+                    theTextFontClr = fontList[(luminance > 0.179 ? 0 : 5) + (index % 5)]; // Math.max(0, Math.min(4, Math.round(5 * Math.random())))];
+                } else {
+                    theTextFontClr = "Black"; // not really needed ... but for completeness sake, and to make sure there's a legit value
+                }
                 //  console.log("FamTxtClr: Bkgd:", thisColourArray[index], "lum:", luminance, "txt:", theTextFontClr);
-                 thisTextColourArray[thisColourArray[index].toUpperCase()] = theTextFontClr;
+                thisTextColourArray[thisColourArray[index].toUpperCase()] = theTextFontClr;
 
-                 // clrSwatchArray.push(
-                 //     "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
-                 //         thisColourArray[index] +
-                 //         ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15 fill='" +
-                 //         theTextFontClr +
-                 //         "'>A</text></svg>"
-                 // );
-             }
-         }
-     }
+                // clrSwatchArray.push(
+                //     "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
+                //         thisColourArray[index] +
+                //         ";stroke:black;stroke-width:1;opacity:1' /><text font-weight=bold x=5 y=15 fill='" +
+                //         theTextFontClr +
+                //         "'>A</text></svg>"
+                // );
+            }
+        }
+    }
 
-     function reverseCommaArray(arr, addSpace = false) {
-         let newArr = [];
-         for (var i = 0; i < arr.length; i++) {
-             let aPieces = arr[i].split(",");
-             let elem = "";
-             for (var j = aPieces.length - 1; j >= 0; j--) {
-                 if (elem > "") {
-                     elem += ",";
-                 }
-                 elem += aPieces[j];
-             }
-             if (addSpace == true && aPieces.length == 1) {
-                 elem = " " + elem;
-             } else if (addSpace == false && aPieces.length == 1) {
-                 elem = elem.trim();
-             }
-             newArr.push(elem);
-         }
-         return newArr;
-     }
+    function reverseCommaArray(arr, addSpace = false) {
+        let newArr = [];
+        for (var i = 0; i < arr.length; i++) {
+            let aPieces = arr[i].split(",");
+            let elem = "";
+            for (var j = aPieces.length - 1; j >= 0; j--) {
+                if (elem > "") {
+                    elem += ",";
+                }
+                elem += aPieces[j];
+            }
+            if (addSpace == true && aPieces.length == 1) {
+                elem = " " + elem;
+            } else if (addSpace == false && aPieces.length == 1) {
+                elem = elem.trim();
+            }
+            newArr.push(elem);
+        }
+        return newArr;
+    }
 
-     function hslToRGBhex(hue, sat, lum) {
-         let rgbArray = hslToRgb(hue, sat, lum);
-         let hexClr =
-             "#" + fractionToHexChar(rgbArray[0]) + fractionToHexChar(rgbArray[1]) + fractionToHexChar(rgbArray[2]);
-         return hexClr;
-     }
+    function hslToRGBhex(hue, sat, lum) {
+        let rgbArray = hslToRgb(hue, sat, lum);
+        let hexClr =
+            "#" + fractionToHexChar(rgbArray[0]) + fractionToHexChar(rgbArray[1]) + fractionToHexChar(rgbArray[2]);
+        return hexClr;
+    }
 
-     function fractionToHexChar(p) {
-         let hx = Math.min(255, Math.max(0, Math.round(p * 256)));
-         // console.log("convert ", p, " to ", hx , " to ", hx.toString(16));
-         hx = hx.toString(16);
-         if (hx.length < 2) {
-             hx = "0" + hx;
-         }
-         return hx;
-     }
+    function fractionToHexChar(p) {
+        let hx = Math.min(255, Math.max(0, Math.round(p * 256)));
+        // console.log("convert ", p, " to ", hx , " to ", hx.toString(16));
+        hx = hx.toString(16);
+        if (hx.length < 2) {
+            hx = "0" + hx;
+        }
+        return hx;
+    }
 
-     function hslToRgb(h, s, l) {
-         const C = (1 - Math.abs(2 * l - 1)) * s;
-         const hPrime = h / 60;
-         const X = C * (1 - Math.abs((hPrime % 2) - 1));
-         const m = l - C / 2;
-         const withLight = (r, g, b) => [r + m, g + m, b + m];
-         if (hPrime <= 1) {
-             return withLight(C, X, 0);
-         } else if (hPrime <= 2) {
-             return withLight(X, C, 0);
-         } else if (hPrime <= 3) {
-             return withLight(0, C, X);
-         } else if (hPrime <= 4) {
-             return withLight(0, X, C);
-         } else if (hPrime <= 5) {
-             return withLight(X, 0, C);
-         } else if (hPrime <= 6) {
-             return withLight(C, 0, X);
-         }
-     }
+    function hslToRgb(h, s, l) {
+        const C = (1 - Math.abs(2 * l - 1)) * s;
+        const hPrime = h / 60;
+        const X = C * (1 - Math.abs((hPrime % 2) - 1));
+        const m = l - C / 2;
+        const withLight = (r, g, b) => [r + m, g + m, b + m];
+        if (hPrime <= 1) {
+            return withLight(C, X, 0);
+        } else if (hPrime <= 2) {
+            return withLight(X, C, 0);
+        } else if (hPrime <= 3) {
+            return withLight(0, C, X);
+        } else if (hPrime <= 4) {
+            return withLight(0, X, C);
+        } else if (hPrime <= 5) {
+            return withLight(X, 0, C);
+        } else if (hPrime <= 6) {
+            return withLight(C, 0, X);
+        }
+    }
 
-         function clrComponentValue(rgbValue) {
-             let sRGB = rgbValue / 255;
-             if (sRGB <= 0.04045) {
-                 return sRGB / 12.92;
-             } else {
-                 return ((sRGB + 0.055) / 1.055) ** 2.4;
-             }
-         }
+    function clrComponentValue(rgbValue) {
+        let sRGB = rgbValue / 255;
+        if (sRGB <= 0.04045) {
+            return sRGB / 12.92;
+        } else {
+            return ((sRGB + 0.055) / 1.055) ** 2.4;
+        }
+    }
 
-         function hex2array(hexString) {
-             let trans = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"];
-             let theRGBarray = [
-                 16 * trans.indexOf(hexString.substr(1, 1)) + trans.indexOf(hexString.substr(2, 1)),
-                 16 * trans.indexOf(hexString.substr(3, 1)) + trans.indexOf(hexString.substr(4, 1)),
-                 16 * trans.indexOf(hexString.substr(5, 1)) + trans.indexOf(hexString.substr(6, 1)),
-             ];
-             return theRGBarray;
-         }
+    function hex2array(hexString) {
+        let trans = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"];
+        let theRGBarray = [
+            16 * trans.indexOf(hexString.substr(1, 1)) + trans.indexOf(hexString.substr(2, 1)),
+            16 * trans.indexOf(hexString.substr(3, 1)) + trans.indexOf(hexString.substr(4, 1)),
+            16 * trans.indexOf(hexString.substr(5, 1)) + trans.indexOf(hexString.substr(6, 1)),
+        ];
+        return theRGBarray;
+    }
 
-         function hexify(clr) {
-             let hex = "#";
-             let trans = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"];
-             if (clr.indexOf("rgb") > -1) {
-                 clr = clr.replace("rgb(", "").replace(")", "");
-                 rgbClrs = clr.split(",");
-             }
-             for (let i = 0; i < rgbClrs.length; i++) {
-                 const comp = rgbClrs[i];
-                 let sixteens = Math.floor(comp / 16);
-                 let ones = comp - 16 * sixteens;
-                 hex += trans[sixteens] + trans[ones];
-             }
-             return hex;
-         }
-         function calcLuminance(initBkgdClr) {
-             let rgbClrs = [80, 80, 80];
-             if (initBkgdClr.indexOf("rgb") > -1) {
-                 initBkgdClr = initBkgdClr.replace("rgb(", "").replace(")", "");
-                 rgbClrs = initBkgdClr.split(",");
-             } else if (initBkgdClr.indexOf("#") > -1) {
-                 rgbClrs = hex2array(initBkgdClr.toUpperCase());
-             } else {
-                 let wasFound = false;
-                 for (let index = 0; index < FullColoursArray.length; index++) {
-                     const element = FullColoursArray[index];
-                     if (element[1].toUpperCase() == initBkgdClr.toUpperCase()) {
-                        //  console.log("FOUND ", element);
-                         wasFound = true;
-                         rgbClrs = hex2array(element[2]);
-                         break;
-                     }
-                 }
-                 if (!wasFound) {
-                    //  console.log("FOUND - COULD NOT FIND COLOUR:", initBkgdClr);
-                     rgbClrs = [40, 40, 40];
-                 }
-             }
-             let luminance =
-                 0.2126 * clrComponentValue(1.0 * rgbClrs[0]) +
-                 0.7152 * clrComponentValue(1.0 * rgbClrs[1]) +
-                 0.0722 * clrComponentValue(1.0 * rgbClrs[2]);
+    function hexify(clr) {
+        let hex = "#";
+        let trans = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"];
+        if (clr.indexOf("rgb") > -1) {
+            clr = clr.replace("rgb(", "").replace(")", "");
+            rgbClrs = clr.split(",");
+        }
+        for (let i = 0; i < rgbClrs.length; i++) {
+            const comp = rgbClrs[i];
+            let sixteens = Math.floor(comp / 16);
+            let ones = comp - 16 * sixteens;
+            hex += trans[sixteens] + trans[ones];
+        }
+        return hex;
+    }
+    function calcLuminance(initBkgdClr) {
+        let rgbClrs = [80, 80, 80];
+        if (initBkgdClr.indexOf("rgb") > -1) {
+            initBkgdClr = initBkgdClr.replace("rgb(", "").replace(")", "");
+            rgbClrs = initBkgdClr.split(",");
+        } else if (initBkgdClr.indexOf("#") > -1) {
+            rgbClrs = hex2array(initBkgdClr.toUpperCase());
+        } else {
+            let wasFound = false;
+            for (let index = 0; index < FullColoursArray.length; index++) {
+                const element = FullColoursArray[index];
+                if (element[1].toUpperCase() == initBkgdClr.toUpperCase()) {
+                    //  console.log("FOUND ", element);
+                    wasFound = true;
+                    rgbClrs = hex2array(element[2]);
+                    break;
+                }
+            }
+            if (!wasFound) {
+                //  console.log("FOUND - COULD NOT FIND COLOUR:", initBkgdClr);
+                rgbClrs = [40, 40, 40];
+            }
+        }
+        let luminance =
+            0.2126 * clrComponentValue(1.0 * rgbClrs[0]) +
+            0.7152 * clrComponentValue(1.0 * rgbClrs[1]) +
+            0.0722 * clrComponentValue(1.0 * rgbClrs[2]);
 
-             return luminance;
-         }
+        return luminance;
+    }
 
-     function switchFontColour(element, newClr) {
-         let fontList = [
-             "fontBlack",
-             "fontDarkGreen",
-             "fontDarkRed",
-             "fontDarkBlue",
-             "fontBrown",
-             "fontWhite",
-             "fontYellow",
-             "fontLime",
-             "fontPink",
-             "fontCyan",
-         ];
-         if (fontList.indexOf(newClr) == -1) {
-             console.log("Invalid colour sent to switchFontColour:", newClr);
-             return; // don't change anything - an invalid font has been entered
-         }
-         // let newClr  = fontList[ Math.max(0, Math.min(fontList.length - 1, Math.round(fontList.length * Math.random() )) )];
-         element.classList.remove("fontBlack");
-         element.classList.remove("fontDarkGreen");
-         element.classList.remove("fontDarkRed");
-         element.classList.remove("fontDarkBlue");
-         element.classList.remove("fontBrown");
-         element.classList.remove("fontWhite");
-         element.classList.remove("fontYellow");
-         element.classList.remove("fontLime");
-         element.classList.remove("fontPink");
-         element.classList.remove("fontCyan");
-         element.classList.add(newClr);
-     }
-
+    function switchFontColour(element, newClr) {
+        let fontList = [
+            "fontBlack",
+            "fontDarkGreen",
+            "fontDarkRed",
+            "fontDarkBlue",
+            "fontBrown",
+            "fontWhite",
+            "fontYellow",
+            "fontLime",
+            "fontPink",
+            "fontCyan",
+        ];
+        if (fontList.indexOf(newClr) == -1) {
+            console.log("Invalid colour sent to switchFontColour:", newClr);
+            return; // don't change anything - an invalid font has been entered
+        }
+        // let newClr  = fontList[ Math.max(0, Math.min(fontList.length - 1, Math.round(fontList.length * Math.random() )) )];
+        element.classList.remove("fontBlack");
+        element.classList.remove("fontDarkGreen");
+        element.classList.remove("fontDarkRed");
+        element.classList.remove("fontDarkBlue");
+        element.classList.remove("fontBrown");
+        element.classList.remove("fontWhite");
+        element.classList.remove("fontYellow");
+        element.classList.remove("fontLime");
+        element.classList.remove("fontPink");
+        element.classList.remove("fontCyan");
+        element.classList.add(newClr);
+    }
 
     function updateFontsIfNeeded() {
         if (
@@ -3299,13 +3365,14 @@
 
         let elem = document.getElementById("wedgeInfoFor" + ahnNum).parentNode;
         // console.log(elem.parentNode);
-    
+
         if (elem) {
             let rect = elem.getBoundingClientRect();
             let elemParent = elem.parentNode;
             let rectParent = elemParent.getBoundingClientRect();
-            thisY = newY - 0  + 1*(rect.height ) - 0 + 1*elemParent.getAttribute("y") + 10 ;
-            thisY = newY - 0  + 1*elemParent.getAttribute("y") +  (1*rect.height + 2)/FractalView.currentScaleFactor ;
+            thisY = newY - 0 + 1 * rect.height - 0 + 1 * elemParent.getAttribute("y") + 10;
+            thisY =
+                newY - 0 + 1 * elemParent.getAttribute("y") + (1 * rect.height + 2) / FractalView.currentScaleFactor;
             // console.log("SVG d3:", d3 );
             // console.log("SVG scale:", d3.scale, FractalView.currentScaleFactor );
             // console.log("SVG behave:", d3.behavior);
@@ -3322,15 +3389,15 @@
                 // line1.style.display = "inline-block";
                 line1.setAttribute("x1", newX - 200);
                 line1.setAttribute("x2", newX + 200);
-                line1.setAttribute("y1", thisY );
-                line1.setAttribute("y2", thisY );
+                line1.setAttribute("y1", thisY);
+                line1.setAttribute("y2", thisY);
                 // console.log(line1);
                 // line2.style.display = "inline-block";
                 line2.setAttribute("x1", newX - 200);
                 line2.setAttribute("x2", newX + 200);
-                line2.setAttribute("y1", newY - 0  + 1*elemParent.getAttribute("y")  );
-                line2.setAttribute("y2", newY - 0  + 1*elemParent.getAttribute("y")  );
-                console.log(line2);
+                line2.setAttribute("y1", newY - 0 + 1 * elemParent.getAttribute("y"));
+                line2.setAttribute("y2", newY - 0 + 1 * elemParent.getAttribute("y"));
+                // console.log(line2);
             }
         }
 
@@ -3820,98 +3887,560 @@
         return thisColourArray[Math.floor(Math.random() * thisColourArray.length)];
     }
 
-    function getBackgroundColourFor(gen, pos, ahnNum) {
-            PastelsArray = [
-                "#ECFFEF",
-                "#CCEFEC",
-                "#CCFFCC",
-                "#FFFFCC",
-                "#FFE5CC",
-                "#FFCCCC",
-                "#FFCCE5",
-                "#FFCCFF",
-                "#E5CCFF",
-                "#D5CCEF",
-                "#E6E6FA",
-                "#FFB6C1",
-                "#F5DEB3",
-                "#FFFACD",
-                "#C5ECCF",
-                "#F0FFF0",
-                "#FDF5E6",
-                "#FFE4E1",
-            ];
-            RainbowArray = [
-                "#FFFACD",
-                "Red",
-                "Orange",
-                "Yellow",
-                "SpringGreen",
-                "SkyBlue",
-                "Orchid",
-                "Violet",
-                "DeepPink",
-                "Pink",
-                "MistyRose",
-                "OrangeRed",
-                "Gold",
-                "GreenYellow",
-                "Cyan",
-                "Plum",
-                "Magenta",
-                "#F83BB7",
-                "#FF45A3",
-                "PaleVioletRed",
-                "Pink",
-            ]; // replaced some colours
-            RainbowArrayLong = [
-                "#FFFACD",
-                "Red",
-                "OrangeRed",
-                "Orange",
-                "Gold",
-                "Yellow",
-                "GreenYellow",
-                "SpringGreen",
-                "Cyan",
-                "SkyBlue",
-                "#B898E0",
-                "Orchid",
-                "Magenta",
-                "Violet",
-                "#F83BB7",
-                "DeepPink",
-                "#FF45A3",
-                "HotPink",
-                "#FF45A3",
-                "DeepPink",
-                "Violet",
-                "Magenta",
-                "Orchid",
-                "#B898E0",
-                "SkyBlue",
-                "Cyan",
-                "SpringGreen",
-                "GreenYellow",
-                "Yellow",
-                "Gold",
-                "Orange",
-                "OrangeRed",
-                "Red",
-            ]; // replaced some colours
-            Rainbow8 = [
-                "Red",
-                "Orange",
-                "Yellow",
-                "SpringGreen",
-                "SkyBlue",
-                "Orchid",
-                "Violet",
-                "DeepPink",
-                "HotPink",
-                "MistyRose",
-            ];
-            RainbowTweens = ["OrangeRed", "Gold", "GreenYellow", "Cyan", "Plum", "Magenta", "PaleVioletRed", "Pink"];
+    function getColourArray() {
+        PastelsArray = [
+            "#ECFFEF",
+            "#CCEFEC",
+            "#CCFFCC",
+            "#FFFFCC",
+            "#FFE5CC",
+            "#FFCCCC",
+            "#FFCCE5",
+            "#FFCCFF",
+            "#E5CCFF",
+            "#D5CCEF",
+            "#E6E6FA",
+            "#FFB6C1",
+            "#F5DEB3",
+            "#FFFACD",
+            "#C5ECCF",
+            "#F0FFF0",
+            "#FDF5E6",
+            "#FFE4E1",
+        ];
+        RainbowArray = [
+            "#FFFACD",
+            "Red",
+            "Orange",
+            "Yellow",
+            "SpringGreen",
+            "SkyBlue",
+            "Orchid",
+            "Violet",
+            "DeepPink",
+            "Pink",
+            "MistyRose",
+            "OrangeRed",
+            "Gold",
+            "GreenYellow",
+            "Cyan",
+            "Plum",
+            "Magenta",
+            "#F83BB7",
+            "#FF45A3",
+            "PaleVioletRed",
+            "Pink",
+        ]; // replaced some colours
+        RainbowArrayLong = [
+            "#FFFACD",
+            "Red",
+            "OrangeRed",
+            "Orange",
+            "Gold",
+            "Yellow",
+            "GreenYellow",
+            "SpringGreen",
+            "Cyan",
+            "SkyBlue",
+            "#B898E0",
+            "Orchid",
+            "Magenta",
+            "Violet",
+            "#F83BB7",
+            "DeepPink",
+            "#FF45A3",
+            "HotPink",
+            "#FF45A3",
+            "DeepPink",
+            "Violet",
+            "Magenta",
+            "Orchid",
+            "#B898E0",
+            "SkyBlue",
+            "Cyan",
+            "SpringGreen",
+            "GreenYellow",
+            "Yellow",
+            "Gold",
+            "Orange",
+            "OrangeRed",
+            "Red",
+        ]; // replaced some colours
+        Rainbow8 = [
+            "Red",
+            "Orange",
+            "Yellow",
+            "SpringGreen",
+            "SkyBlue",
+            "Orchid",
+            "Violet",
+            "DeepPink",
+            "HotPink",
+            "MistyRose",
+        ];
+        RainbowTweens = ["OrangeRed", "Gold", "GreenYellow", "Cyan", "Plum", "Magenta", "PaleVioletRed", "Pink"];
+
+        GreysArrayOrig = [
+            "#ACACAC",
+            "#B0B0B0",
+            "#B4B4B4",
+            "#B8B8B8",
+            "#BCBCBC",
+            "#C0C0C0",
+            "#C4C4C4",
+            "#C8C8C8",
+            "#CCCCCC",
+            "#D0D0D0",
+            "#D4D4D4",
+            "#D8D8D8",
+            "#DCDCDC",
+            "#E0E0E0",
+            "#E4E4E4",
+            "#E8E8E8",
+            "#ECECEC",
+            "#F0F0F0",
+        ];
+        AltGreysArray = [
+            "#F0F0F0",
+            "#C5C5C5",
+            "#EAEAEA",
+            "#C0C0C0",
+            "#E5E5E5",
+            "#BABABA",
+            "#E0E0E0",
+            "#B5B5B5",
+            "#DADADA",
+            "#B0B0B0",
+            "#D5D5D5",
+            "#AAAAAA",
+            "#D0D0D0",
+            "#A5A5A5",
+            "#CACACA",
+            "#A0A0A0",
+            "#C5C5C5",
+            "#9A9A9A",
+            "#C5C5C5",
+            "#A0A0A0",
+            "#CACACA",
+            "#A5A5A5",
+            "#D0D0D0",
+            "#AAAAAA",
+            "#D5D5D5",
+            "#B0B0B0",
+            "#DADADA",
+            "#B5B5B5",
+            "#E0E0E0",
+            "#BABABA",
+            "#E5E5E5",
+            "#C0C0C0",
+            "#EAEAEA",
+            "#C5C5C5",
+            "#F0F0F0",
+        ];
+        GreysArray = [
+            "#F0F0F0",
+            "#EAEAEA",
+            "#E5E5E5",
+            "#E0E0E0",
+            "#DADADA",
+            "#D5D5D5",
+            "#D0D0D0",
+            "#CACACA",
+            "#C5C5C5",
+            "#C0C0C0",
+            "#BABABA",
+            "#B5B5B5",
+            "#B0B0B0",
+            "#AAAAAA",
+            "#A5A5A5",
+            "#A0A0A0",
+            "#9A9A9A",
+            "#A0A0A0",
+            "#A5A5A5",
+            "#AAAAAA",
+            "#B0B0B0",
+            "#B5B5B5",
+            "#BABABA",
+            "#C0C0C0",
+            "#C5C5C5",
+            "#CACACA",
+            "#D0D0D0",
+            "#D5D5D5",
+            "#DADADA",
+            "#E0E0E0",
+            "#E5E5E5",
+            "#EAEAEA",
+            "#F0F0F0",
+        ];
+        RedsArray = [
+            "#FFF8F0",
+            "#FFF0F8",
+            "#FFF4F4",
+            "#FFF0F0",
+            "#FFE8E0",
+            "#FFE0E8",
+            "#FFE4E4",
+            "#FFE0E0",
+            "#FFD8D0",
+            "#FFD0D8",
+            "#FFD4D4",
+            "#FFD0D0",
+            "#FFC8C0",
+            "#FFC0C8",
+            "#FFC4C4",
+            "#FFC0C0",
+            "#FFB0B0",
+            "#FFA0A0",
+            "#FFB0B0",
+            "#FFC0C0",
+            "#FFC4C4",
+            "#FFC0C8",
+            "#FFC8C0",
+            "#FFD0D0",
+            "#FFD4D4",
+            "#FFD0D8",
+            "#FFD8D0",
+            "#FFE0E0",
+            "#FFE4E4",
+            "#FFE0E8",
+            "#FFE8E0",
+            "#FFF0F0",
+            "#FFF4F4",
+            "#FFF0F8",
+            "#FFF8F0",
+        ];
+        BluesArray = [
+            "#F8F0FF",
+            "#F0F8FF",
+            "#F4F4FF",
+            "#F0F0FF",
+            "#E8E0FF",
+            "#E0E8FF",
+            "#E4E4FF",
+            "#E0E0FF",
+            "#D8D0FF",
+            "#D0D8FF",
+            "#D4D4FF",
+            "#D0D0FF",
+            "#C8C0FF",
+            "#C0C8FF",
+            "#C4C4FF",
+            "#C0C0FF",
+            "#B0B0FF",
+            "#A0A0FF",
+
+            "#B0B0FF",
+            "#C0C0FF",
+            "#C4C4FF",
+            "#C0C8FF",
+            "#C8C0FF",
+            "#D0D0FF",
+            "#D4D4FF",
+            "#D0D8FF",
+            "#D8D0FF",
+            "#E0E0FF",
+            "#E4E4FF",
+            "#E0E8FF",
+            "#E8E0FF",
+            "#F0F0FF",
+            "#F4F4FF",
+            "#F0F8FF",
+            "#F8F0FF",
+        ];
+        GreensArray = [
+            "#F8FFF0",
+            "#F0FFF8",
+            "#F4FFF4",
+            "#F0FFF0",
+            "#E8FFE0",
+            "#E0FFE8",
+            "#E4FFE4",
+            "#E0FFE0",
+            "#D8FFD0",
+            "#D0FFD8",
+            "#D4FFD4",
+            "#D0FFD0",
+            "#C8FFC0",
+            "#C0FFC8",
+            "#C4FFC4",
+            "#C0FFC0",
+            "#B0FFB0",
+            "#A0FFA0",
+
+            "#B0FFB0",
+            "#C0FFC0",
+            "#C4FFC4",
+            "#C0FFC8",
+            "#C8FFC0",
+            "#D0FFD0",
+            "#D4FFD4",
+            "#D0FFD8",
+            "#D8FFD0",
+            "#E0FFE0",
+            "#E4FFE4",
+            "#E0FFE8",
+            "#E8FFE0",
+            "#F0FFF0",
+            "#F4FFF4",
+            "#F0FFF8",
+            "#F8FFF0",
+        ];
+        let AltRedsArray = [
+            "#FFF8F0",
+            "#FFD8D0",
+            "#FFF0F8",
+            "#FFD0D8",
+            "#FFF4F4",
+            "#FFD4D4",
+            "#FFF0F0",
+            "#FFD0D0",
+            "#FFE8E0",
+            "#FFC8C0",
+            "#FFE0E8",
+            "#FFC0C8",
+            "#FFE4E4",
+            "#FFC4C4",
+            "#FFE0E0",
+            "#FFC0C0",
+            "#FFEAEA",
+            "#FFA0A0",
+
+            "#FFEAEA",
+            "#FFC0C0",
+            "#FFE0E0",
+            "#FFC4C4",
+            "#FFE4E4",
+            "#FFC0C8",
+            "#FFE0E8",
+            "#FFC8C0",
+            "#FFE8E0",
+            "#FFD0D0",
+            "#FFF0F0",
+            "#FFD4D4",
+            "#FFF4F4",
+            "#FFD0D8",
+            "#FFF0F8",
+            "#FFD8D0",
+            "#F0F8FF",
+        ];
+        let AltGreensArray = [
+            "#F8FFF0",
+            "#D8FFD0",
+            "#F0FFF8",
+            "#D0FFD8",
+            "#F4FFF4",
+            "#D4FFD4",
+            "#F0FFF0",
+            "#D0FFD0",
+            "#E8FFE0",
+            "#C8FFC0",
+            "#E0FFE8",
+            "#C0FFC8",
+            "#E4FFE4",
+            "#C4FFC4",
+            "#E0FFE0",
+            "#C0FFC0",
+            "#EAFFEA",
+            "#A0FFA0",
+
+            "#EAFFEA",
+            "#C0FFC0",
+            "#E0FFE0",
+            "#C4FFC4",
+            "#E4FFE4",
+            "#C0FFC8",
+            "#E0FFE8",
+            "#C8FFC0",
+            "#E8FFE0",
+            "#D0FFD0",
+            "#F0FFF0",
+            "#D4FFD4",
+            "#F4FFF4",
+            "#D0FFD8",
+            "#F0FFF8",
+            "#D8FFD0",
+            "#F8F0FF",
+        ];
+        let AltBluesArray = [
+            "#F8F0FF",
+            "#D8D0FF",
+            "#F0F8FF",
+            "#D0D8FF",
+            "#F4F4FF",
+            "#D4D4FF",
+            "#F0F0FF",
+            "#D0D0FF",
+            "#E8E0FF",
+            "#C8C0FF",
+            "#E0E8FF",
+            "#C0C8FF",
+            "#E4E4FF",
+            "#C4C4FF",
+            "#E0E0FF",
+            "#C0C0FF",
+            "#EAEAFF",
+            "#A0A0FF",
+
+            "#EAEAFF",
+            "#C0C0FF",
+            "#E0E0FF",
+            "#C4C4FF",
+            "#E4E4FF",
+            "#C0C8FF",
+            "#E0E8FF",
+            "#C8C0FF",
+            "#E8E0FF",
+            "#D0D0FF",
+            "#F0F0FF",
+            "#D4D4FF",
+            "#F4F4FF",
+            "#D0D8FF",
+            "#F0F8FF",
+            "#D8D0FF",
+            "#F8FFFF",
+        ];
+        let AllColoursArrays = [
+            ColourArray,
+            GreysArray,
+            RedsArray,
+            GreensArray,
+            BluesArray,
+            PastelsArray,
+            RainbowArray,
+            AltGreysArray,
+            AltGreensArray,
+        ];
+        let KeyColoursMatches = {
+            random: ColourArray,
+            Greys: GreysArray,
+            Reds: RedsArray,
+            Greens: GreensArray,
+            Blues: BluesArray,
+            AltGreys: AltGreysArray,
+            AltGreens: AltGreensArray,
+            AltReds: AltRedsArray,
+            AltBlues: AltBluesArray,
+            Pastels: PastelsArray,
+            Rainbow: RainbowArray,
+        };
+
+        // start out with a random palette selected, so, if nothing else, at least there's something
+        let thisColourArray = AllColoursArrays[Math.floor(Math.random() * AllColoursArrays.length)];
+
+        let settingForPalette = FractalView.currentSettings["colour_options_palette"];
+        let settingForColourBy = FractalView.currentSettings["colour_options_colourBy"];
+
+        if (KeyColoursMatches[settingForPalette]) {
+            thisColourArray = KeyColoursMatches[settingForPalette];
+        }
+        if (settingForColourBy == "Location") {
+            thisColourArray = [];
+            for (let c = 0; c <= 6; c++) {
+                for (let i = 0; i < AllColoursArrays[c].length; i++) {
+                    const element = AllColoursArrays[c][i];
+                    if (thisColourArray.indexOf(element) == -1) {
+                        thisColourArray.push(element);
+                    }
+                }
+            }
+            // thisColourArray.sort();
+        }
+
+        return thisColourArray;
+    }
+
+    function getBackgroundColourForB4RootsTech(gen, pos, ahnNum) {
+        PastelsArray = [
+            "#ECFFEF",
+            "#CCEFEC",
+            "#CCFFCC",
+            "#FFFFCC",
+            "#FFE5CC",
+            "#FFCCCC",
+            "#FFCCE5",
+            "#FFCCFF",
+            "#E5CCFF",
+            "#D5CCEF",
+            "#E6E6FA",
+            "#FFB6C1",
+            "#F5DEB3",
+            "#FFFACD",
+            "#C5ECCF",
+            "#F0FFF0",
+            "#FDF5E6",
+            "#FFE4E1",
+        ];
+        RainbowArray = [
+            "#FFFACD",
+            "Red",
+            "Orange",
+            "Yellow",
+            "SpringGreen",
+            "SkyBlue",
+            "Orchid",
+            "Violet",
+            "DeepPink",
+            "Pink",
+            "MistyRose",
+            "OrangeRed",
+            "Gold",
+            "GreenYellow",
+            "Cyan",
+            "Plum",
+            "Magenta",
+            "#F83BB7",
+            "#FF45A3",
+            "PaleVioletRed",
+            "Pink",
+        ]; // replaced some colours
+        RainbowArrayLong = [
+            "#FFFACD",
+            "Red",
+            "OrangeRed",
+            "Orange",
+            "Gold",
+            "Yellow",
+            "GreenYellow",
+            "SpringGreen",
+            "Cyan",
+            "SkyBlue",
+            "#B898E0",
+            "Orchid",
+            "Magenta",
+            "Violet",
+            "#F83BB7",
+            "DeepPink",
+            "#FF45A3",
+            "HotPink",
+            "#FF45A3",
+            "DeepPink",
+            "Violet",
+            "Magenta",
+            "Orchid",
+            "#B898E0",
+            "SkyBlue",
+            "Cyan",
+            "SpringGreen",
+            "GreenYellow",
+            "Yellow",
+            "Gold",
+            "Orange",
+            "OrangeRed",
+            "Red",
+        ]; // replaced some colours
+        Rainbow8 = [
+            "Red",
+            "Orange",
+            "Yellow",
+            "SpringGreen",
+            "SkyBlue",
+            "Orchid",
+            "Violet",
+            "DeepPink",
+            "HotPink",
+            "MistyRose",
+        ];
+        RainbowTweens = ["OrangeRed", "Gold", "GreenYellow", "Cyan", "Plum", "Magenta", "PaleVioletRed", "Pink"];
 
         GreysArrayOrig = [
             "#ACACAC",
@@ -4315,8 +4844,154 @@
             return thisColourArray[Math.floor(Math.random() * thisColourArray.length)];
         }
 
+        return thisColourArray[Math.floor(Math.random() * thisColourArray.length)];
+    }
+
+    function getBackgroundColourFor(gen, pos, ahnNum) {
+        // GET the settings that determine what the colouring should look like (if at all)
+        let settingForColourBy = FractalView.currentSettings["colour_options_colourBy"];
+        // WHILE we're here, might as well get the sub-settings if Family or Location colouring is being used ...
+        let settingForSpecifyByFamily = FractalView.currentSettings["colour_options_specifyByFamily"];
+        let settingForSpecifyByLocation = FractalView.currentSettings["colour_options_specifyByLocation"];
+
+        let settingForPalette = FractalView.currentSettings["colour_options_palette"];
+
+        if (settingForColourBy == "None") {
+            return "White";
+        }
+
+        let thisColourArray = getColourArray();
+
+        let overRideByHighlight = false; //
+        if (FractalView.currentSettings["highlight_options_showHighlights"] == true) {
+            overRideByHighlight = doHighlightFor(gen, pos, ahnNum);
+        }
+        if (overRideByHighlight == true) {
+            return "yellow";
+        }
+
+        if (ahnNum == 1 && settingForColourBy != "Location" && settingForColourBy != "Family") {
+            return thisColourArray[0];
+        }
+
+        let numThisGen = 2 ** gen;
+
+        if (settingForColourBy == "Gender") {
+            return thisColourArray[1 + (ahnNum % 2)];
+        } else if (settingForColourBy == "Generation") {
+            if (settingForPalette == "Rainbow") {
+                for (var i = 0; i < FractalView.numGens2Display; i++) {
+                    thisColourArray[FractalView.numGens2Display - i] = Rainbow8[i];
+                }
+            }
+            return thisColourArray[1 + (gen % thisColourArray.length)];
+        } else if (settingForColourBy == "Grand") {
+            return thisColourArray[1 + (Math.floor((4 * pos) / numThisGen) % thisColourArray.length)];
+        } else if (settingForColourBy == "GGrand") {
+            return thisColourArray[1 + (Math.floor((8 * pos) / numThisGen) % thisColourArray.length)];
+        } else if (settingForColourBy == "GGGrand") {
+            if (settingForPalette == "Rainbow") {
+                thisColourArray = RainbowArrayLong;
+            }
+            return thisColourArray[1 + (Math.floor((16 * pos) / numThisGen) % thisColourArray.length)];
+        } else if (settingForColourBy == "GGGGrand") {
+            if (settingForPalette == "Rainbow") {
+                thisColourArray = RainbowArrayLong;
+            }
+            return thisColourArray[1 + (Math.floor((32 * pos) / numThisGen) % thisColourArray.length)];
+        } else if (settingForColourBy == "Family") {
+            if (settingForSpecifyByFamily == "age") {
+                let thisAge = thePeopleList[FractalView.myAhnentafel.list[ahnNum]]._data.age;
+                if (thisAge == undefined) {
+                    let thePerp = thePeopleList[FractalView.myAhnentafel.list[ahnNum]];
+                    thisAge = theAge(thePerp);
+                    thePerp._data["age"] = thisAge;
+                    console.log("thisAge - WAS undefined - now is:", thisAge);
+                } else {
+                    console.log("thisAge:", thisAge);
+                }
+
+                if (thisAge == -2) {
+                    return "white"; //thisColourArray[0];
+                } else if (thisAge == -1) {
+                    return "lime"; //thisColourArray[0];
+                } else {
+                    let thisDecade = 1 + Math.max(0, Math.floor((thisAge + 0.5) / 10));
+                    console.log("Age " + thisAge + " in Decade # " + thisDecade);
+                    return thisColourArray[thisDecade];
+                }
+            } else if (settingForSpecifyByFamily == "spouses") {
+            } else if (settingForSpecifyByFamily == "siblings") {
+            }
+        } else if (settingForColourBy == "Location") {
+            let locString = thePeopleList[FractalView.myAhnentafel.list[ahnNum]]._data[settingForSpecifyByLocation];
+            if (settingForSpecifyByLocation == "BirthDeathCountry") {
+                locString = thePeopleList[FractalView.myAhnentafel.list[ahnNum]]._data["DeathCountry"];
+            } else if (settingForSpecifyByLocation == "DeathBirthCountry") {
+                locString = thePeopleList[FractalView.myAhnentafel.list[ahnNum]]._data["BirthCountry"];
+            }
+
+            if (locString == undefined) {
+                let thisPerp = thePeopleList[FractalView.myAhnentafel.list[ahnNum]];
+                let res = fillOutFamilyStatsLocsForPerp(thisPerp);
+                locString = thisPerp._data[settingForSpecifyByLocation];
+                console.log(
+                    "NEW location for " + thisPerp._data.FirstName + " " + thisPerp._data.LastNameAtBirth,
+                    locString
+                );
+            }
+            let index = theSortedLocationsArray.indexOf(locString);
+            if (index == -1) {
+                if (locString > "") {
+                    showRefreshInLegend();
+                }
+                return "white";
+            }
+            //   let hue = Math.round((360 * index) / theSortedLocationsArray.length);
+            //     let sat = 1 - ((index % 2)) * - 0.15;
+            //     let lit = 0.5 + ((index % 7) - 3) *  0.05;
+            //     let   = hslToRGBhex(hue,sat,lit);
+            let hue = Math.round((360 * index) / theSortedLocationsArray.length);
+            let sat = 1 - (index % 2) * -0.15;
+            let lit = 0.5 + ((index % 7) - 3) * 0.05;
+            let thisClr = hslToRGBhex(hue, sat, lit);
+            return thisClr;
+
+            //     console.log("CLR:", hue, sat, lit, thisClr);
+            //     let clrSwatch =
+            //         "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
+            //         thisClr +
+            //         ";stroke:black;stroke-width:1;opacity:1' /></svg>";
+            //     // let clrSwatch =
+            //     //     "<svg width=20 height=20><rect width=20 height=20 style='fill:" +
+            //     //     thisColourArray[index % thisColourArray.length] +
+            //     //     ";stroke:black;stroke-width:1;opacity:1' /></svg>";
+            //     innerCode += "<br/>" + clrSwatch + " " + sortedLocs[index] ;
+            // }
+
+            // let clrIndex = uniqueLocationsArray.indexOf(locString);
+            // return thisColourArray[clrIndex];
+        } else if (settingForColourBy == "random") {
             return thisColourArray[Math.floor(Math.random() * thisColourArray.length)];
         }
 
+        return thisColourArray[Math.floor(Math.random() * thisColourArray.length)];
+    }
 
+    function getColourFromSortedLocationsIndex(index) {
+        // let index = theSortedLocationsArray.indexOf(locString);
+        if (index == -1) {
+            return "white";
+        }
+
+        //   let hue = Math.round((360 * index) / theSortedLocationsArray.length);
+        //     let sat = 1 - ((index % 2)) * - 0.15;
+        //     let lit = 0.5 + ((index % 7) - 3) *  0.05;
+        //     let   = hslToRGBhex(hue,sat,lit);
+        let hue = Math.round((360 * index) / theSortedLocationsArray.length);
+        let sat = 1 - (index % 2) * -0.15;
+        let lit = 0.5 + ((index % 7) - 3) * 0.05;
+        let thisClr = hslToRGBhex(hue, sat, lit);
+        return thisClr;
+    }
 })();
