@@ -312,6 +312,12 @@ main {
   padding: 6px;
 }
 
+.selectedMenuBarOption {
+  appearance: auto;
+  background: yellow;
+  padding: 3px;
+}
+
 /* Print styling should follow everything else to overwrite it */
 
 @media print {
