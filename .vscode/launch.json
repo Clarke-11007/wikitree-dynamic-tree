@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "type": "chrome",
+            "name": "apps.wikitree.com/apps/adey271/wikitree-dynamic-tree/#name=Marcoux-336&view=fanchart",
+            "request": "launch",
+            "url": "apps.wikitree.com/apps/adey271/wikitree-dynamic-tree/#name=Marcoux-336&view=fanchart"
+        }
+    ]
+}
