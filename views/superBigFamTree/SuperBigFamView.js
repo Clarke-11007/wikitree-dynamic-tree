@@ -8081,7 +8081,7 @@
                 element.classList.remove("fontScript");
                 element.classList.add("font" + font4Name);
             }
-            let infoElements = document.getElementsByClassName("vital-");
+            let infoElements = document.getElementsByClassName("vital");
             for (let e = 0; e < infoElements.length; e++) {
                 const element = infoElements[e];
                 element.classList.remove("fontSerif");
