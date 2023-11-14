@@ -6,7 +6,8 @@
  * WikiTree.com website, it was separated out.
  *
  * New Views are added here, in the View Registry below.
- *
+ * 
+ * Added sja45uk to test GitHub
  */
 
 var wtViewRegistry;
@@ -57,14 +58,16 @@ window.addEventListener("DOMContentLoaded", (event) => {
         "webs": new WebsView(),
         "familygroup": new FamilyView(),
         "printer-friendly": new PrinterFriendlyView(WikiTreeAPI, 5),
-        "calendar": new calendarView(),
-        "familyCalendar": new CalendarView(),
+        "calendar": new CalendarView(),
+        "portraits": new PortraitView(),
         "nameTest": new NameTestView(),
         "cc7": new CC7View(),
         "ale": new ALEView(),
         "descendants": new DescendantsView(),
         "xtree": new XTreeView(),
         "superbig": new SuperBigFamView(),
+        "stats": new StatsView(),
+        "wtPlusMaps": new WtPlusMaps(),
     };
 
     for (let key in views) {
