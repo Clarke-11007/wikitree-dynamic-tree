@@ -22,6 +22,7 @@ import { theSourceRules } from "../../lib/biocheck-api/src/SourceRules.js";
 import { BioCheckPerson } from "../../lib/biocheck-api/src/BioCheckPerson.js";
 import { Biography } from "../../lib/biocheck-api/src/Biography.js";
 import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
+// import { PDFDocument } from "../../lib/pdfkit/pdfkit.standalone.js";
 
 (function () {
     const APP_ID = "FractalTree";
@@ -1179,6 +1180,10 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
             ' <A style="cursor:pointer;" onclick="FractalView.toggleSettings();"><font size=+2>' +
             SVGbtnSETTINGS +
             "</font></A>" +
+            // "&nbsp;&nbsp;" +
+            // "<A onclick=FractalView.makePDF();>" +
+            // PRINTER_ICON +
+            // "</A>" +
             "&nbsp;&nbsp;" +
             "<A onclick=FractalView.toggleAbout();>" +
             SVGbtnINFO +
@@ -1254,6 +1259,125 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
         var saveSettingsChangesButton = document.getElementById("saveSettingsChanges");
         saveSettingsChangesButton.addEventListener("click", (e) => settingsChanged(e));
 
+        FractalView.makePDF = function () {
+            console.log("FractalView.makePDF - NOW!");
+            let theSVGobj = document.getElementById("theSVG");
+            let theSVGgraphicsObj = document.getElementById("SVGgraphics");
+            let theTransform = theSVGgraphicsObj.getAttribute("transform");
+            console.log("TRANSFORM:",theTransform);
+            console.log("DIMENSIONS:", innerWidth + " x " + innerHeight, "vs", theSVGobj.getAttribute("width"),"x",theSVGobj.getAttribute("height"));
+            let theLeft = theTransform.indexOf("(") + 1;
+            let theRight = theTransform.indexOf(")") ;
+            let theTransformArray = theTransform.substring(theLeft,theRight).split(",");
+            let DX = Math.ceil(theTransformArray[0]);
+            let DY = Math.ceil(theTransformArray[1]);
+
+            const doc = new PDFDocument({
+                size: [1.0 * theSVGobj.getAttribute("width"),  1.0 * theSVGobj.getAttribute("height")],
+            });
+            // const blobStream = new blobStream();
+
+            // const blob = new Blob([], { type: "application/pdf" });
+            const stream = doc.pipe(new blobStream());
+            doc.text("Hello world!");
+
+            doc.moveTo(100,100).lineTo(150,150).strokeColor("blue").lineWidth(4).stroke();
+
+            doc.moveTo(300, 300).lineTo(300, 500).strokeColor("red").lineWidth(10).stroke();
+
+            doc.strokeColor("green").lineWidth(20);
+
+
+
+            let theLines = document.getElementsByTagName("line");
+            for (let L = 0; L < theLines.length; L++) {
+                let thisLine = theLines[L];
+                if (thisLine.getAttribute("display") == "none") {
+                    // ignore
+                } else {    
+                    console.log("LINE:", thisLine);
+                    doc.moveTo(DX + 1.0 * thisLine.getAttribute("x1"), DY +  1.0 * thisLine.getAttribute("y1"))
+                    .lineTo(DX + 1.0 * thisLine.getAttribute("x2"), DY +  1.0 * thisLine.getAttribute("y2")).stroke();
+
+                    console
+                        .log("DRAW: ", thisLine.getAttribute("x1"), thisLine.getAttribute("y1"), "TO", thisLine.getAttribute("x2"), thisLine.getAttribute("y2"));
+                }
+            }
+
+            doc.strokeColor("orange").lineWidth(5);
+
+            let thisSVGpersons = document.getElementsByClassName('person');
+            for (let P = 0; P < thisSVGpersons.length; P++) {
+                // const element = thisSVGpersons[P];
+                let singleSVGperson = thisSVGpersons[P]; //document.getElementsByClassName('person');
+                console.log(singleSVGperson);
+
+                let personTransform = singleSVGperson.getAttribute("transform");
+                console.log("person TRANSFORM:", personTransform);
+                 
+                let personLeft = personTransform.indexOf("(") + 1;
+                let personRight = personTransform.indexOf(")");
+                let personTransformArray = personTransform.substring(personLeft, personRight).split(",");
+                let personDX = Math.ceil(personTransformArray[0]) - 150;
+                let personDY = Math.ceil(personTransformArray[1]) - 150;
+
+                doc.roundedRect(DX + personDX, DY + personDY, 300, 300, 20).stroke();
+
+                for (const key in singleSVGperson) {
+                    if (singleSVGperson[key]) {
+                        const element = singleSVGperson[key];
+                        if (typeof element == "function") {
+                            // not interested
+                        } else { 
+                            // console.log(P, "SVGgraphics: obj ", key, typeof element);
+                        }
+                    } else if (Object.hasOwnProperty.call(singleSVGperson, key)) {
+                        // const element = singleSVGperson[key];
+                        // console.log(P, "SVGgraphics: object ", key);
+                    } else {
+                        // console.log(P, "SVGgraphics: ", key);
+                    }
+                }
+                    
+                console.log(singleSVGperson['childNodes']);
+                console.log(singleSVGperson['innerHTML']);
+                console.log(singleSVGperson['innerText']);
+                doc.text(singleSVGperson.firstChild.firstChild.innerText);
+            }
+
+            doc.end();
+            console.log(doc);
+
+
+            stream.on("finish", function () {
+                // get a blob you can do whatever you like with
+                // const blob = stream.toBlob("application/pdf");
+
+                // or get a blob URL for display in the browser
+                const blobURL = stream.toBlobURL("application/pdf");
+                // iframe.src = url;
+
+                // Create a link element to trigger the download
+                const link = document.createElement("a");
+                link.href = blobURL; //URL.createObjectURL(blob);
+                link.download = "thisTest.pdf";
+
+                // Append the link to the DOM and trigger the download
+                document.body.appendChild(link);
+                link.click();
+
+                // Remove the link from the DOM
+                document.body.removeChild(link);
+
+            });
+
+
+            // Create a Blob object with the string data
+            // const blob = new Blob(doc, { type: "application/pdf" });
+
+           
+
+        }
         FractalView.toggleAbout = function () {
             let aboutDIV = document.getElementById("aboutDIV");
             let settingsDIV = document.getElementById("settingsDIV");
@@ -1575,7 +1699,12 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
     };
 
         // CREATE the SVG object (which will be placed immediately under the button bar)
-        const svg = d3.select(container).append("svg").attr("width", width).attr("height", height);
+        const svg = d3
+            .select(container)
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("id", "theSVG");
         const g = svg.append("g").attr("id", "SVGgraphics");
 
         condLog("ADDING THE SVG BIG DADDY TAZ");

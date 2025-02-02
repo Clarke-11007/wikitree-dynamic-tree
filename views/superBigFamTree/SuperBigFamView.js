@@ -1655,6 +1655,10 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
             ' <A style="cursor:pointer;" onclick="SuperBigFamView.toggleSettings();"><font size=+2>' +
             SVGbtnSETTINGS +
             "</font></A>" +
+            // "&nbsp;&nbsp;" +
+            // "<A onclick=SuperBigFamView.makePDF();>" +
+            // PRINTER_ICON +
+            // "</A>" +
             "&nbsp;&nbsp;" +
             "<A onclick=SuperBigFamView.toggleAbout();>" +
             SVGbtnINFO +
@@ -1746,6 +1750,311 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
         var saveSettingsChangesButton = document.getElementById("saveSettingsChanges");
         saveSettingsChangesButton.addEventListener("click", (e) => settingsChanged(e));
 
+        /*
+            ================
+            makePDF function
+            ================
+
+            Will comb through the SVG object, extract the images, text, shapes and turn them into a PDF doc
+            then deliver that to the browser as an auto-download.
+
+            This function will need to be tweaked for each Tree App that makes use of it, 
+            based on how the various components are put together in each app, 
+            but the basic structure and logic should remain the same for all.
+
+        */
+        SuperBigFamView.makePDF = function () {
+            console.log("SuperBigFamView.makePDF - NOW!");
+            let theSVGobj = document.getElementById("superbigChartSVG");
+            let theSVGgraphicsObj = document.getElementById("SVGgraphics");
+            let theTransform = theSVGgraphicsObj.getAttribute("transform");
+            console.log("TRANSFORM:", theTransform);
+            console.log(
+                "DIMENSIONS:",
+                innerWidth + " x " + innerHeight,
+                "vs",
+                theSVGobj.getAttribute("width"),
+                "x",
+                theSVGobj.getAttribute("height")
+            );
+            let theLeft = theTransform.indexOf("(") + 1;
+            let theRight = theTransform.indexOf(")");
+            let theTransformArray = theTransform.substring(theLeft, theRight).split(",");
+            let DX = Math.ceil(theTransformArray[0]);
+            let DY = Math.ceil(theTransformArray[1]);
+
+            let maxX,
+                maxY,
+                minX,
+                minY = null;
+
+            let thePolyLines = document.getElementsByTagName("polyline"); // collect all the <polyline > </polyline> objects
+            let thePolyLinesArray = []; // for storing the details for each line to draw
+
+            // GO THROUGH all the POLY LINES, and
+            // a) find the min / max of the X and Y coordinates
+            // b) store the details needed to draw each line, once we've created the PDF size as large as needed
+            for (let L = 0; L < thePolyLines.length; L++) {
+                let thisLine = thePolyLines[L];
+                if (thisLine.getAttribute("display") == "none") {
+                    // ignore
+                } else {
+                    let thisLineWidth = 2;
+                    if (thisLine.getAttribute("stroke-width")) {
+                        thisLineWidth = thisLine.getAttribute("stroke-width");
+                    }
+
+                    let thisLinePoints = thisLine.getAttribute("points").split(" ");
+                    thisLinePoints[0] = thisLinePoints[0].split(",");
+                    thisLinePoints[1] = thisLinePoints[1].split(",");
+
+                    if (thePolyLinesArray.length == 0) {
+                        maxX = Math.max(thisLinePoints[0][0], thisLinePoints[1][0]);
+                        minX = Math.min(thisLinePoints[0][0], thisLinePoints[1][0]);
+                        maxY = Math.max(thisLinePoints[0][1], thisLinePoints[1][1]);
+                        minY = Math.min(thisLinePoints[0][1], thisLinePoints[1][1]);
+                    } else {
+                        maxX = Math.max(maxX, thisLinePoints[0][0], thisLinePoints[1][0]);
+                        minX = Math.min(minX, thisLinePoints[0][0], thisLinePoints[1][0]);
+                        maxY = Math.max(maxY, thisLinePoints[0][1], thisLinePoints[1][1]);
+                        minY = Math.min(minY, thisLinePoints[0][1], thisLinePoints[1][1]);
+                    }
+                    thePolyLinesArray.push({
+                        lineWidth: thisLineWidth,
+                        strokeColor: thisLine.getAttribute("stroke"),
+                        pt1: thisLinePoints[0],
+                        pt2: thisLinePoints[1],
+                    });
+                }
+            }
+
+            console.log("FULL RANGE : ", minX, " < x < ", maxX, " | ", minY, " < y < ", maxY);
+            DX = 0 - minX + 72 + 350; // add some extra for buffer because the lines end up in the MIDDLE of a Person RoundedRect
+            DY = 0 - minY + 72 + 300;
+
+            // ==========================
+            // (0) - CREATE PDF DOC
+            //     NOW that we know the proper size of the document needed ... let's create it:
+            // ==========================
+            const doc = new PDFDocument({
+                size: [maxX - minX + 2 * 72 + 3 * 300, maxY - minY + 2 * 72 + 2 * 350],
+            });
+            const stream = doc.pipe(new blobStream());
+            // doc.text("Hello world!");
+            // doc.moveTo(100, 100).lineTo(150, 150).strokeColor("blue").lineWidth(4).stroke();
+            // doc.moveTo(300, 300).lineTo(300, 500).strokeColor("red").lineWidth(10).stroke();
+
+            // ==========================
+            // (1) DRAW LINES using thePolyLinesArray
+            // ==========================
+            for (let L = 0; L < thePolyLinesArray.length; L++) {
+                let LL = thePolyLinesArray[L];
+                doc.moveTo(DX + 1.0 * LL.pt1[0], DY + 1.0 * LL.pt1[1])
+                    .lineTo(DX + 1.0 * LL.pt2[0], DY + 1.0 * LL.pt2[1])
+                    .strokeColor(LL.strokeColor)
+                    .lineWidth(LL.lineWidth)
+                    .stroke();
+            }
+
+            // doc.strokeColor("green").lineWidth(20);
+
+            doc.strokeColor("orange").lineWidth(5);
+
+            // ==========================
+            // (2) CYCLE through EACH PERSON ... and
+            // a) draw their Rounded Rect
+            // b) collect info about any IMGs needed
+            // c) add their Text
+
+            let thisSVGpersons = document.getElementsByClassName("person");
+            let svgImageFiles = [];
+
+            for (let P = 0; P < thisSVGpersons.length; P++) {
+                // const element = thisSVGpersons[P];
+                let singleSVGperson = thisSVGpersons[P]; //document.getElementsByClassName('person');
+                console.log(singleSVGperson);
+
+                let personTransform = singleSVGperson.getAttribute("transform");
+                console.log("person TRANSFORM:", personTransform);
+
+                let personLeft = personTransform.indexOf("(") + 1;
+                let personRight = personTransform.indexOf(")");
+                let personTransformArray = personTransform.substring(personLeft, personRight).split(",");
+                let personDX = Math.ceil(personTransformArray[0]) - 150;
+                let personDY = Math.ceil(personTransformArray[1]) - 100;
+
+                // ==========================
+                // (2a) DRAW the ROUNDED RECT for the PERSON to be DISPLAYED INSIDE
+                // ==========================
+                let personStyle = singleSVGperson.firstChild.firstChild.getAttribute("style");
+                let bgClrLeft = personStyle.indexOf("background-color:");
+                let bgClrRight = personStyle.indexOf(";", bgClrLeft + 1);
+                let bgClr = personStyle.substring(bgClrLeft + 17, bgClrRight).trim();
+                let personWidth = 300;
+                console.log({ bgClr });
+                doc.fillColor(bgClr);
+                if (bgClr == "#E5E4E2") {
+                    personWidth = 150;
+                    personDX += 75;
+                }
+                doc.roundedRect(DX + personDX, DY + personDY, personWidth, 300, 20).fillAndStroke();
+
+                // ==========================
+                // (2b) ADD THE IMAGE INFO - IF THERE
+                // ==========================
+                let personWedge = singleSVGperson.firstChild.firstChild.firstChild;
+                let personWedgeChilds = personWedge.childNodes;
+                let whichVitalNum = 0;
+                for (let w = 0; w < personWedgeChilds.length; w++) {
+                    // console.log({P} , { w }, typeof personWedgeChilds[w].getAttribute,   personWedgeChilds[w]);
+                    if (
+                        personWedgeChilds[w] &&
+                        typeof personWedgeChilds[w].getAttribute == "function" &&
+                        personWedgeChilds[w].getAttribute("class") &&
+                        personWedgeChilds[w].getAttribute("class").indexOf("vital") > -1
+                    ) {
+                        whichVitalNum = w;
+                        break;
+                    }
+                }
+                let personVital = personWedgeChilds[whichVitalNum];
+                let personVitalChilds = personVital.childNodes;
+
+                let whichImageNum = 0;
+                for (let w = 0; w < personVitalChilds.length; w++) {
+                    if (
+                        personVitalChilds[w] &&
+                        typeof personVitalChilds[w].getAttribute == "function" &&
+                        personVitalChilds[w].getAttribute("class") &&
+                        personVitalChilds[w].getAttribute("class").indexOf("image") > -1
+                    ) {
+                        whichImageNum = w;
+                        break;
+                    }
+                }
+                let personImage = personVitalChilds[whichImageNum];
+                let personImageURL = personImage.firstChild
+                    .getAttribute("src");
+                    
+                // personImageURL = "https://apps.wikitree.com/apps/clarke11007/pix/fan360.png";
+
+                svgImageFiles.push({url:personImageURL, x:DX + personDX + 50, y: DY + personDY + 50, credentials: "include", withCredentials:true});
+
+                    // .replace("https://www.wikitree.com/", "");
+
+
+                console.log(
+                    { whichVitalNum },
+                    { whichImageNum },
+                    { personWedge },
+                    { personVital },
+                    { personImage },
+                    { personImageURL }
+                );
+
+                // if (personImageURL > "") {
+                //     // doc.image(personImageURL, DX + personDX + 50, DY + personDY + 50);
+                // }
+
+                // ==========================
+                // (2c) ADD THE TEXT
+                // ==========================
+
+                // for (const key in singleSVGperson) {
+                //     if (singleSVGperson[key]) {
+                //         const element = singleSVGperson[key];
+                //         if (typeof element == "function") {
+                //             // not interested
+                //         } else {
+                //             // console.log(P, "SVGgraphics: obj ", key, typeof element);
+                //         }
+                //     } else if (Object.hasOwnProperty.call(singleSVGperson, key)) {
+                //         // const element = singleSVGperson[key];
+                //         // console.log(P, "SVGgraphics: object ", key);
+                //     } else {
+                //         // console.log(P, "SVGgraphics: ", key);
+                //     }
+                // }
+
+                // console.log(singleSVGperson["childNodes"]);
+                // console.log(singleSVGperson["innerHTML"]);
+                // console.log(singleSVGperson["innerText"]);
+                // doc.text(singleSVGperson.firstChild.firstChild.innerText);
+            }
+
+            // ==========================
+            // (3) PROCESS the IMAGES
+            // ==========================
+            let filesLoaded = 0;
+
+            function loadedFile(xhr) {
+
+                for (var file in svgImageFiles) {
+                    console.log ("compare URLs:" , svgImageFiles[file].url , xhr.responseURL);
+
+                    if (svgImageFiles[file].url === xhr.responseURL) {
+                        svgImageFiles[file].data = xhr.response;
+                        doc.image(svgImageFiles[file].data, svgImageFiles[file].x, svgImageFiles[file].y ); /// add options ??
+                        console.log("Image @ ", svgImageFiles[file].x, svgImageFiles[file].y);
+                    }
+                }
+                filesLoaded += 1;
+                // if (filesLoaded == Object.keys(files).length) {
+                if (filesLoaded == svgImageFiles.length) {
+                    doc.end();
+                }
+            }
+
+            if (svgImageFiles.length == 0) {
+                doc.end();
+            } else {
+
+                
+                for (var file in svgImageFiles) {
+                    svgImageFiles[file].xhr = new XMLHttpRequest();
+                    svgImageFiles[file].xhr.onreadystatechange = function () {
+                        if (this.readyState == 4 && this.status == 200) {
+                            loadedFile(this);
+                        }
+                    };
+
+                    svgImageFiles[file].xhr.responseType = "arraybuffer";
+                    svgImageFiles[file].xhr.open("GET", svgImageFiles[file].url);
+                    svgImageFiles[file].xhr.send(null);
+                }
+            }
+
+           
+            
+
+            // ==========================
+            // (4) ONCE everything is DONE (all images processed, and doc.end() has been called )
+            // create the blob that is an application/pdf, and do the sleight of hand link / a / click trick
+            // that will trigger the download of the file to the browser.
+            // ==========================
+
+            stream.on("finish", function () {
+                // get a blob you can do whatever you like with
+                // const blob = stream.toBlob("application/pdf");
+
+                // or get a blob URL for display in the browser
+                const blobURL = stream.toBlobURL("application/pdf");
+                // iframe.src = url;
+
+                // Create a link element to trigger the download
+                const link = document.createElement("a");
+                link.href = blobURL; //URL.createObjectURL(blob);
+                link.download = "thisTest.pdf";
+
+                // Append the link to the DOM and trigger the download
+                document.body.appendChild(link);
+                link.click();
+
+                // Remove the link from the DOM
+                document.body.removeChild(link);
+            });
+        };
+
         SuperBigFamView.toggleAbout = function () {
             let aboutDIV = document.getElementById("aboutDIV");
             let settingsDIV = document.getElementById("settingsDIV");
@@ -1761,16 +2070,15 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
 
         SuperBigFamView.copyDataText = function (widget) {
             navigator.clipboard.writeText(widget.getAttribute("data-copy-text"));
-            // console.log("copyDataText:", widget, widget.getAttribute("data-copy-text"));   
+            // console.log("copyDataText:", widget, widget.getAttribute("data-copy-text"));
         };
-        
 
         function settingsChanged(e) {
             if (SuperBigFamView.SBFtreeSettingsOptionsObject.hasSettingsChanged(SuperBigFamView.currentSettings)) {
                 condLog("the SETTINGS HAVE CHANGED - the CALL TO SETTINGS OBJ  told me so !");
                 WTapps_Utils.setCookie("wtapps_superbig", JSON.stringify(SuperBigFamView.currentSettings), {
                     expires: 365,
-                }); 
+                });
                 condLog("NEW settings are:", SuperBigFamView.currentSettings);
                 let showBadges = SuperBigFamView.currentSettings["general_options_showBadges"];
                 let newBoxWidth = SuperBigFamView.currentSettings["general_options_boxWidth"];
@@ -1936,13 +2244,8 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
                     // redoPopup();
                     let thisPerson = thePeopleList[SuperBigFamView.currentPopupID];
                     SuperBigFamView.removePopup();
-                    SuperBigFamView.personPopup(
-                        thisPerson,
-                        1,
-                        SuperBigFamView.currentPopupCode
-                    );                    
+                    SuperBigFamView.personPopup(thisPerson, 1, SuperBigFamView.currentPopupCode);
                 }
-
             } else {
                 condLog("NOTHING happened according to SETTINGS OBJ");
             }
@@ -1984,7 +2287,7 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
             } else if (colourBy == "DNAstatus") {
                 LegendTitle.textContent = "Parental status";
             }
-        }
+        };
 
         SuperBigFamView.updateHighlightDescriptor = function () {
             let legendToggle = document.getElementById("legendASCII");
@@ -2060,54 +2363,51 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
             } else {
                 document.getElementById("highlightDescriptor").style.display = "none";
             }
-        }
+        };
 
+        // function updateCurrentSettingsBasedOnCookieValues(theCookieString) {
+        //         const theCookieSettings = JSON.parse(theCookieString);
+        //         for (const key in theCookieSettings) {
+        //             if (Object.hasOwnProperty.call(theCookieSettings, key)) {
+        //                 const element = theCookieSettings[key];
+        //                 let theType = "";
+        //                 if (document.getElementById(key)) {
+        //                     theType = document.getElementById(key).type;
+        //                     if (theType == "checkbox") {
+        //                         document.getElementById(key).checked = element;
+        //                     } else if (theType == "number" || theType == "text") {
+        //                         document.getElementById(key).value = element;
+        //                     } else if (document.getElementById(key).classList.length > 0) {
+        //                         document.getElementById(key).value = element;
+        //                         theType = "optionSelect";
+        //                     } else {
+        //                         theType = document.getElementById(key);
+        //                     }
+        //                 } else {
+        //                     theType = "NO HTML OBJECT";
+        //                     let theRadioButtons = document.getElementsByName(key + "_radio");
+        //                     if (theRadioButtons) {
+        //                         // console.log("Looks like there might be some RADIO BUTTONS here !", theRadioButtons.length);
+        //                         theType = "radio x " + theRadioButtons.length;
+        //                         for (let i = 0; i < theRadioButtons.length; i++) {
+        //                             const btn = theRadioButtons[i];
+        //                             if (btn.value == element) {
+        //                                 btn.checked = true;
+        //                             }
+        //                         }
+        //                     }
+        //                 }
+        //                 // console.log(key, element, theType);
+        //                 if (Object.hasOwnProperty.call(SuperBigFamView.currentSettings, key)) {
+        //                     SuperBigFamView.currentSettings[key] = element;
+        //                 }
+        //             }
+        //         }
 
-
-    // function updateCurrentSettingsBasedOnCookieValues(theCookieString) {
-    //         const theCookieSettings = JSON.parse(theCookieString);
-    //         for (const key in theCookieSettings) {
-    //             if (Object.hasOwnProperty.call(theCookieSettings, key)) {
-    //                 const element = theCookieSettings[key];
-    //                 let theType = "";
-    //                 if (document.getElementById(key)) {
-    //                     theType = document.getElementById(key).type;
-    //                     if (theType == "checkbox") {
-    //                         document.getElementById(key).checked = element;
-    //                     } else if (theType == "number" || theType == "text") {
-    //                         document.getElementById(key).value = element;
-    //                     } else if (document.getElementById(key).classList.length > 0) {
-    //                         document.getElementById(key).value = element;
-    //                         theType = "optionSelect";
-    //                     } else {
-    //                         theType = document.getElementById(key);
-    //                     }
-    //                 } else {
-    //                     theType = "NO HTML OBJECT";
-    //                     let theRadioButtons = document.getElementsByName(key + "_radio");
-    //                     if (theRadioButtons) {
-    //                         // console.log("Looks like there might be some RADIO BUTTONS here !", theRadioButtons.length);
-    //                         theType = "radio x " + theRadioButtons.length;
-    //                         for (let i = 0; i < theRadioButtons.length; i++) {
-    //                             const btn = theRadioButtons[i];
-    //                             if (btn.value == element) {
-    //                                 btn.checked = true;
-    //                             }
-    //                         }
-    //                     }
-    //                 }
-    //                 // console.log(key, element, theType);
-    //                 if (Object.hasOwnProperty.call(SuperBigFamView.currentSettings, key)) {
-    //                     SuperBigFamView.currentSettings[key] = element;
-    //                 }
-    //             }
-    //         }
-
-    //         // ADD SPECIAL SETTING THAT GETS MISSED OTHERWISE:
-    //         // SuperBigFamView.currentSettings["general_options_badgeLabels_otherValue"] =
-    //         //     theCookieSettings["general_options_badgeLabels_otherValue"];
-    // }
-   
+        //         // ADD SPECIAL SETTING THAT GETS MISSED OTHERWISE:
+        //         // SuperBigFamView.currentSettings["general_options_badgeLabels_otherValue"] =
+        //         //     theCookieSettings["general_options_badgeLabels_otherValue"];
+        // }
 
         // CREATE the SVG object (which will be placed immediately under the button bar)
         const svg = d3
@@ -2412,30 +2712,28 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
         //     let possibleWTuserID = possibleWTuserIDdiv.innerText;
         //     let whereCOLON = possibleWTuserID.indexOf(":");
         //     let whereBracket = possibleWTuserID.indexOf("(");
-        //     let youID = possibleWTuserID.substring(whereCOLON + 1, whereBracket).trim(); 
+        //     let youID = possibleWTuserID.substring(whereCOLON + 1, whereBracket).trim();
         //     condLog("You are:", youID);
         //     if (youID == "Clarke-11007") {
         //         invokeCreatorCustomSettings();
         //     }
         // }
-        
+
         SuperBigFamView.Adimensions = [];
 
         // SOME minor tweaking needed in the COLOURS tab of the Settings object since some drop-downs are contingent upon which original option was chosen
         let bkgdClrSelector = document.getElementById("colour_options_colourBy");
         bkgdClrSelector.setAttribute("onchange", "SuperBigFamView.optionElementJustChanged();");
-        
+
         // SOME minor tweaking needed in the HIGHLIGHT tab of the Settings object since some drop-downs are contingent upon which original option was chosen
         let highlightSelector = document.getElementById("highlight_options_highlightBy");
         highlightSelector.setAttribute("onchange", "SuperBigFamView.optionElementJustChanged();");
-          
 
         SuperBigFamView.tweakSettingsToHideShowElements();
 
         SuperBigFamView.updateHighlightDescriptor();
         SuperBigFamView.updateLegendTitle();
 
-        
         let showBadges = SuperBigFamView.currentSettings["general_options_showBadges"];
         if (!showBadges) {
             let stickerLegend = document.getElementById("stickerLegend");
@@ -5874,7 +6172,7 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
         if (
             SuperBigFamView.displayPedigreeOnly == 0 &&
             SuperBigFamView.numAncGens2Display > Math.max(0, SuperBigFamView.numAncGensRetrieved) &&
-            OKtoAddAncs
+            OKtoAddAncs == OKtoAddAncs
         ) {
             SuperBigFamView.numAncGensRetrieved = SuperBigFamView.numAncGens2Display;
             condLog(
@@ -6273,11 +6571,19 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
                         let doSift = numDescendants < 3;
                         postGetPeopleProcessing(getCode[0], newDescLevel, doSift);
                     } else if (getCode == "A1") {
-                        getPeopleCall(NextKeysIDsArray, "A2", 0);
+                        if (newAncLevel == 7) {
+                            getPeopleCall(SuperBigFamView.ListsOfIDs["A1sp"], "A3", 0);
+                        } else {
+                            getPeopleCall(NextKeysIDsArray, "A2", 0);
+                        }
                     } else if (getCode == "A2") {
                         getPeopleCall(SuperBigFamView.ListsOfIDs["A1sp"], "A3", 0);
                     } else if (getCode == "A3") {
-                        getPeopleCall(SuperBigFamView.ListsOfIDs["A2sp"], "A4", 0);
+                        if (newAncLevel == 7) {
+                             postGetPeopleProcessing(getCode[0], newAncLevel);
+                        } else {
+                            getPeopleCall(SuperBigFamView.ListsOfIDs["A2sp"], "A4", 0);
+                        }
                     } else if (getCode == "A4") {
                         postGetPeopleProcessing(getCode[0], newAncLevel);
                     } else if (getCode == "I0") {
@@ -12831,7 +13137,7 @@ import { WTapps_Utils } from "../fanChart/WTapps_Utils.js";
             innerCode += "<br/>";
 
             innerCode += "<br/><B>Grand Aunts & Uncles</B> <br/>";
-            legendLetters = ["G", "GG", "2xGG", "3xGG", "4xGG", "5xGG"];
+            legendLetters = ["G", "GG", "2xGG", "3xGG", "4xGG"];
             legendDesc = [
                 "Grand-Piblings",
                 "Great Grand-Piblings",

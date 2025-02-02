@@ -26,6 +26,9 @@ window.XTreeView = class XTreeView extends View {
     }
 };
 
+// import PDFDocument from "../../lib/pdfkit/pdfkit.js";
+// const PDFDocument = require("pdfkit");
+
 const PRINTER_ICON = "&#x1F4BE;";
 const SETTINGS_GEAR = "&#x2699;";
 const LEGEND_CLIPBOARD = "&#x1F4CB;";
@@ -494,6 +497,10 @@ window.XTreeAncestorList = class XTreeAncestorList {
             ' <A style="cursor:pointer;" onclick="XTreeView.toggleSettings();"><font size=+2>' +
             // SVGbtnSETTINGS +
             "</font></A>" +
+            // "&nbsp;&nbsp;" +
+            // "<A onclick=XTreeView.makePDF();>" +
+            //  PRINTER_ICON +
+            // "</A>" +
             "&nbsp;&nbsp;" +
             "<A onclick=XTreeView.toggleAbout();>" +
             SVGbtnINFO +
@@ -516,6 +523,11 @@ window.XTreeAncestorList = class XTreeAncestorList {
                 `<div id="XTreeFamilyTree"></div>` +
                 `<div id="XTreeAncestorList" style="text-align:center;"></div>`
         );
+
+        XTreeView.makePDF = function () {
+            console.log("MAKE a PDF now, please!");
+
+        }
 
         XTreeView.toggleAbout = function () {
             let aboutDIV = document.getElementById("aboutDIV");
