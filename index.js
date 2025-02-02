@@ -6,7 +6,8 @@
  * WikiTree.com website, it was separated out.
  *
  * New Views are added here, in the View Registry below.
- *
+ * 
+ * Added sja45uk to test GitHub
  */
 
 var wtViewRegistry;
