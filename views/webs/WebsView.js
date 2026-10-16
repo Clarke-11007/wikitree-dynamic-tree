@@ -585,6 +585,8 @@ import { Utils } from "../shared/Utils.js";
                                 },
                                 { value: "br" },
                                 { value: "FnameLname", text: "Full Name (First Name + LNAB)" },
+                                { value: "br" },
+                                { value: "FnameLnameLife", text: "Full Name + Lifespan" },
                             ],
                             defaultValue: "FML",
                         },
@@ -607,6 +609,8 @@ import { Utils } from "../shared/Utils.js";
                                 { value: "FLname", text: "Short Name (First Name + LNAB, first initial if needed)" },
                                 { value: "br" },
                                 { value: "FnameLname", text: "Full Name (First Name + LNAB)" },
+                                { value: "br" },
+                                { value: "FnameLnameLife", text: "Full Name + Lifespan" },
                             ],
                             defaultValue: "FnameLname",
                         },
@@ -780,9 +784,9 @@ import { Utils } from "../shared/Utils.js";
             "</A> &nbsp; " +
             '  <A id="menuBarOptionCommon" title="Display COMMON Ancestors Web for multiple Primaries" style="cursor:pointer;" onclick="WebsView.comingSoon(2);">COMMON</A> |  <A id="menuBarOptionSingles" title="Display SINGLES Ancestor-in-Common Web to multiple Primaries" style="cursor:pointer;" onclick="WebsView.comingSoon(3);">SINGLES</A> ' +
             "&nbsp;&nbsp;&nbsp;&nbsp;" +
-            '<A style="cursor:pointer;" title="Change Zoom level - 3 settings" onclick="WebsView.reZoom();">' +
-            SVGbtnRESIZE2 +
-            "</A>&nbsp;&nbsp;&nbsp;&nbsp;" +
+            /* '<A style="cursor:pointer;" title="Change Zoom level - 3 settings" onclick="WebsView.reZoom();">' + */
+            /* SVGbtnRESIZE2 +
+            "</A>&nbsp;&nbsp;&nbsp;&nbsp;" + */
             "  <font size=+2>" +
             ' <A style="cursor:pointer;" title="Adjust Settings"  onclick="WebsView.toggleSettings();"><font size=+2>' +
             SVGbtnSETTINGS +
@@ -843,7 +847,16 @@ import { Utils } from "../shared/Utils.js";
         infoPanel.parentNode.classList.add("stickyDIV");
         infoPanel.parentNode.style.padding = "0px";
 
-        infoPanel.innerHTML = btnBarHTML + aboutHTML + settingsHTML + popupDIV;
+        const viewToolsHTML =
+            '<div id="webs-view-tools" style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; margin:6px 0;">' +
+            '<span><button type="button" class="btn btn-secondary btn-sm" data-zoom="out" title="Zoom out" aria-label="Zoom out">&minus;</button> ' +
+            '<button type="button" class="btn btn-secondary btn-sm" data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button> ' +
+            '<button type="button" class="btn btn-secondary btn-sm" data-zoom="fit" title="Fit the diagram to the window">Fit</button> ' +
+            '<button type="button" class="btn btn-secondary btn-sm" data-zoom="reset" title="Actual size">100%</button></span>' +
+            '<span>Save: <button type="button" class="btn btn-secondary btn-sm" data-format="png">PNG</button> ' +
+            '<button type="button" class="btn btn-secondary btn-sm" data-format="svg">SVG</button> ' +
+            '<button type="button" class="btn btn-secondary btn-sm" data-format="pdf">PDF</button></span></div>';
+        infoPanel.innerHTML = btnBarHTML + aboutHTML + settingsHTML + popupDIV + viewToolsHTML;
         container.innerHTML = "";
 
         $("#popupDIV").draggable();
@@ -1184,6 +1197,54 @@ import { Utils } from "../shared/Utils.js";
         svg.call(zoom);
         svg.call(zoom.transform, d3.zoomIdentity.scale(1).translate(width / 2, height / 2));
 
+        // Zoom and Save-as-image buttons (just above the view container)
+        const svgNode = svg.node();
+        const MARGIN_Y = 50;
+        // Size the SVG so the whole diagram fits at this scale (50px above and below), centred horizontally
+        const sizeToDiagram = (scale) => {
+            svgNode.removeAttribute("viewBox");
+            const box = g.node().getBBox();
+            if (!box.width || !box.height) return;
+            const frameWidth = svgNode.clientWidth || width;
+            svgNode.setAttribute("height", Math.ceil(box.height * scale + 2 * MARGIN_Y));
+            const tx = frameWidth / 2 - scale * (box.x + box.width / 2);
+            const ty = MARGIN_Y - scale * box.y;
+            svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+        };
+        const fitToFrame = () => {
+            svgNode.removeAttribute("viewBox");
+            svgNode.setAttribute("height", height);
+            const box = g.node().getBBox();
+            const frameWidth = svgNode.clientWidth || width;
+            const frameHeight = svgNode.clientHeight || height;
+            if (!box.width || !box.height) return;
+            const scale = Math.min((frameWidth * 0.95) / box.width, (frameHeight * 0.95) / box.height);
+            const tx = frameWidth / 2 - scale * (box.x + box.width / 2);
+            const ty = frameHeight / 2 - scale * (box.y + box.height / 2);
+            svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+        };
+        // Whenever the diagram is (re)drawn, start at 120% with the SVG tall enough to hold it
+        let resizeTimer = null;
+        new MutationObserver(() => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => sizeToDiagram(1.2), 200);
+        }).observe(g.node(), { childList: true, subtree: true });
+        document.querySelectorAll("#webs-view-tools button[data-zoom]").forEach((button) =>
+            button.addEventListener("click", () => {
+                const action = button.dataset.zoom;
+                const current = d3.zoomTransform(svgNode).k;
+                if (action === "in") sizeToDiagram(Math.min(2, current * 1.25));
+                else if (action === "out") sizeToDiagram(Math.max(0.1, current * 0.8));
+                else if (action === "fit") fitToFrame();
+                else sizeToDiagram(1);
+            })
+        );
+        document
+            .querySelectorAll("#webs-view-tools button[data-format]")
+            .forEach((button) =>
+                button.addEventListener("click", () => saveDiagramImage(svgNode, g.node(), button.dataset.format))
+            );
+
         // condLog("creating SVG object and setting up ancestor tree object")
         // Setup controllers for the ancestor tree which will be displayed as the Ancestor Webs
         self.ancestorTree = new AncestorTree(g);
@@ -1371,7 +1432,12 @@ import { Utils } from "../shared/Utils.js";
 
         if (nameSettings == "FName") {
             theXmultiplier = 3;
-        } else if (nameSettings == "FName" || nameSettings == "FLname" || nameSettings == "FnameLname") {
+        } else if (
+            nameSettings == "FName" ||
+            nameSettings == "FLname" ||
+            nameSettings == "FnameLname" ||
+            nameSettings == "FnameLnameLife"
+        ) {
             theXmultiplier = 4;
         } else if (nameSettings == "FML") {
             theXmultiplier = 1.25;
@@ -3818,7 +3884,12 @@ import { Utils } from "../shared/Utils.js";
             }
             if (nameSettings == "FName") {
                 theXmultiplier = 3;
-            } else if (nameSettings == "FName" || nameSettings == "FLname" || nameSettings == "FnameLname") {
+            } else if (
+                nameSettings == "FName" ||
+                nameSettings == "FLname" ||
+                nameSettings == "FnameLname" ||
+                nameSettings == "FnameLnameLife"
+            ) {
                 theXmultiplier = 4;
             } else if (nameSettings == "FML") {
                 theXmultiplier = 1.25;
@@ -3851,7 +3922,12 @@ import { Utils } from "../shared/Utils.js";
                         ltrsNeeded = getFirstLNAB(ancestorObject.person).length;
                         if (WebsView.viewMode == "Common") {
                             // let nameSettings = WebsView.currentSettings["name_options_multiNameFormat"];
-                            if (nameSettings == "FName" || nameSettings == "FLname" || nameSettings == "FnameLname") {
+                            if (
+                                nameSettings == "FName" ||
+                                nameSettings == "FLname" ||
+                                nameSettings == "FnameLname" ||
+                                nameSettings == "FnameLnameLife"
+                            ) {
                                 if (nameSettings == "FName") {
                                     thisNewX = thisNewX * 3;
                                 } else {
@@ -3900,11 +3976,21 @@ import { Utils } from "../shared/Utils.js";
                     let baseWidth4Lettrs = 8.5;
                     if (WebsView.viewMode == "Indi" || WebsView.viewMode == "Singles") {
                         // do nothing with thisNewX
-                        if (nameSettings == "FName" || nameSettings == "FLname" || nameSettings == "FnameLname") {
+                        if (
+                            nameSettings == "FName" ||
+                            nameSettings == "FLname" ||
+                            nameSettings == "FnameLname" ||
+                            nameSettings == "FnameLnameLife"
+                        ) {
                             baseWidth4Lettrs = 5;
                         }
                     } else {
-                        if (nameSettings == "FName" || nameSettings == "FLname" || nameSettings == "FnameLname") {
+                        if (
+                            nameSettings == "FName" ||
+                            nameSettings == "FLname" ||
+                            nameSettings == "FnameLname" ||
+                            nameSettings == "FnameLnameLife"
+                        ) {
                             baseWidth4Lettrs = 5;
                             if (nameSettings == "FName") {
                                 thisNewX = thisNewX * 3;
@@ -3926,7 +4012,7 @@ import { Utils } from "../shared/Utils.js";
                     //     "nameDivFor" + ancestorObject.ahnNum + "p" + ancestorObject.p
                     // ).style.color = "Yellow";
 
-                    let ltrsNeeded = thisNameNow.length;
+                    let ltrsNeeded = longestLineLength(thisNameNow);
                     let fontClr = "Black";
                     if (bkgdColourSetting == "dark") {
                         fontClr = "White";
@@ -5192,8 +5278,10 @@ import { Utils } from "../shared/Utils.js";
             maxWidth =
                 24 *
                 Math.max(
-                    getNameAsPerSettings(thePeopleList[theAncestorAtTop.id]).length,
-                    getNameAsPerSettings(thePeopleList[WebsView.listOfPrimePersons[WebsView.currentPrimeNum]]).length
+                    longestLineLength(getNameAsPerSettings(thePeopleList[theAncestorAtTop.id])),
+                    longestLineLength(
+                        getNameAsPerSettings(thePeopleList[WebsView.listOfPrimePersons[WebsView.currentPrimeNum]])
+                    )
                 );
             for (let index = 0; index < newOrder.length; index++) {
                 const newElement = newOrder[index];
@@ -5378,7 +5466,8 @@ import { Utils } from "../shared/Utils.js";
                 WebsView.viewMode == "Common" &&
                 (WebsView.currentSettings["name_options_multiNameFormat"] == "FName" ||
                     WebsView.currentSettings["name_options_multiNameFormat"] == "FLname" ||
-                    WebsView.currentSettings["name_options_multiNameFormat"] == "FnameLname")
+                    WebsView.currentSettings["name_options_multiNameFormat"] == "FnameLname" ||
+                    WebsView.currentSettings["name_options_multiNameFormat"] == "FnameLnameLife")
             ) {
                 maxWidthMultplier = 2;
             }
@@ -5386,8 +5475,10 @@ import { Utils } from "../shared/Utils.js";
             maxWidth =
                 maxWidthMultplier *
                 Math.max(
-                    getNameAsPerSettings(thePeopleList[theAncestorAtTop.id]).length,
-                    getNameAsPerSettings(thePeopleList[WebsView.listOfPrimePersons[WebsView.currentPrimeNum]]).length
+                    longestLineLength(getNameAsPerSettings(thePeopleList[theAncestorAtTop.id])),
+                    longestLineLength(
+                        getNameAsPerSettings(thePeopleList[WebsView.listOfPrimePersons[WebsView.currentPrimeNum]])
+                    )
                 );
 
             condLog({ maxWidth });
@@ -5791,6 +5882,163 @@ import { Utils } from "../shared/Utils.js";
         document.getElementById("SummaryMessageArea").innerHTML = "";
     }
 
+    // Builds a stand-alone copy of the diagram (all of it, regardless of the current zoom/pan) and saves it
+    function saveDiagramImage(svgNode, gNode, format) {
+        const box = gNode.getBBox();
+        if (!box.width || !box.height) return;
+        const pad = 20;
+        const width = Math.ceil(box.width + 2 * pad);
+        const height = Math.ceil(box.height + 2 * pad);
+
+        const clone = svgNode.cloneNode(true);
+        const props = [
+            "font-family",
+            "font-size",
+            "font-weight",
+            "font-style",
+            "color",
+            "background-color",
+            "border",
+            "border-radius",
+            "padding",
+            "margin",
+            "text-align",
+            "text-decoration",
+            "line-height",
+            "white-space",
+            "overflow",
+            "display",
+            "box-sizing",
+            "fill",
+            "fill-opacity",
+            "stroke",
+            "stroke-width",
+            "stroke-dasharray",
+            "stroke-opacity",
+            "opacity",
+        ];
+        const originals = svgNode.querySelectorAll("*");
+        clone.querySelectorAll("*").forEach((element, i) => {
+            const computed = window.getComputedStyle(originals[i]);
+            element.style.cssText += props.map((name) => `${name}:${computed.getPropertyValue(name)}`).join(";");
+        });
+
+        let background = "#fff";
+        for (let el = svgNode; el; el = el.parentElement) {
+            const colour = window.getComputedStyle(el).backgroundColor;
+            if (colour && colour !== "transparent" && !/rgba\(.*,\s*0\)$/.test(colour)) {
+                background = colour;
+                break;
+            }
+        }
+
+        clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+        clone.setAttribute("width", width);
+        clone.setAttribute("height", height);
+        clone.setAttribute("viewBox", `${box.x - pad} ${box.y - pad} ${width} ${height}`);
+        clone.removeAttribute("style");
+        const cloneG = clone.querySelector("#svgG");
+        if (cloneG) cloneG.removeAttribute("transform");
+        const backdrop = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        ["x", "y"].forEach((name, i) => backdrop.setAttribute(name, (i ? box.y : box.x) - pad));
+        backdrop.setAttribute("width", width);
+        backdrop.setAttribute("height", height);
+        backdrop.setAttribute("fill", background);
+        clone.insertBefore(backdrop, clone.firstChild);
+
+        const markup = new XMLSerializer().serializeToString(clone);
+        const baseName = "ancestor-webs";
+        const download = (blob, extension) => {
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `${baseName}.${extension}`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        };
+        if (format === "svg") {
+            download(new Blob([markup], { type: "image/svg+xml" }), "svg");
+            return;
+        }
+        const scale = Math.min(2, 16000 / Math.max(width, height));
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(width * scale);
+            canvas.height = Math.round(height * scale);
+            const context = canvas.getContext("2d");
+            context.fillStyle = background;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(img, 0, 0, canvas.width, canvas.height);
+            try {
+                if (format === "png") {
+                    canvas.toBlob((blob) => blob && download(blob, "png"), "image/png");
+                } else {
+                    canvas.toBlob(
+                        async (blob) => {
+                            if (!blob) return;
+                            download(
+                                buildPdf(
+                                    new Uint8Array(await blob.arrayBuffer()),
+                                    canvas.width,
+                                    canvas.height,
+                                    width,
+                                    height
+                                ),
+                                "pdf"
+                            );
+                        },
+                        "image/jpeg",
+                        0.95
+                    );
+                }
+            } catch (error) {
+                console.error("Could not export the diagram:", error);
+            }
+        };
+        img.onerror = () => console.error("Could not create the image from the diagram.");
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup);
+    }
+
+    // Minimal single-page PDF wrapping a JPEG; the page is sized to the diagram (in points).
+    function buildPdf(jpeg, pixelWidth, pixelHeight, pageWidth, pageHeight) {
+        const encoder = new TextEncoder();
+        const chunks = [];
+        const offsets = [];
+        let length = 0;
+        const add = (data) => {
+            const bytes = typeof data === "string" ? encoder.encode(data) : data;
+            chunks.push(bytes);
+            length += bytes.length;
+        };
+        const object = (number, body) => {
+            offsets[number] = length;
+            add(`${number} 0 obj\n${body}\nendobj\n`);
+        };
+        const content = `q ${pageWidth} 0 0 ${pageHeight} 0 0 cm /Im0 Do Q`;
+        add("%PDF-1.4\n");
+        object(1, "<< /Type /Catalog /Pages 2 0 R >>");
+        object(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+        object(
+            3,
+            `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`
+        );
+        offsets[4] = length;
+        add(
+            `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${pixelWidth} /Height ${pixelHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`
+        );
+        add(jpeg);
+        add("\nendstream\nendobj\n");
+        object(5, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+        const xref = length;
+        add(`xref\n0 6\n0000000000 65535 f \n`);
+        for (let i = 1; i <= 5; i++) add(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`);
+        add(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+        return new Blob(chunks, { type: "application/pdf" });
+    }
+
     /**
      * Generate a string representing this person's lifespan 0000 - 0000
      */
@@ -5972,6 +6220,15 @@ import { Utils } from "../shared/Utils.js";
         return `${getFirstName(person)} ${person._data.LastNameAtBirth}`;
     }
 
+    // Length of the longest line when a name contains <br> line breaks
+    function longestLineLength(text) {
+        return Math.max(
+            ...String(text)
+                .split("<br>")
+                .map((line) => line.length)
+        );
+    }
+
     /**
      * Get the appropriate Name or set of Initials, based on the TYPE of viewMode AND the current Settings
      */
@@ -6007,6 +6264,9 @@ import { Utils } from "../shared/Utils.js";
         }
         if (thisNameSetting == "FnameLname") {
             thisName = getFirstLNAB(person);
+        }
+        if (thisNameSetting == "FnameLnameLife") {
+            thisName = `${getFirstLNAB(person)}<br>${lifespan(person)}`;
         }
 
         return thisName;
