@@ -770,11 +770,11 @@ import { Utils } from "../shared/Utils.js";
             "</td>" +
             '<td width="5%">&nbsp;</td>' +
             '<td width="30%" align="center">' +
-            ' <A style="cursor:pointer;"  title="Decrease # of generations displayed" onclick="WebsView.numGens2Display -=1; WebsView.redraw();">' +
+            ' <A style="cursor:pointer;"  title="Decrease # of generations displayed" onclick="WebsView.stepGens(-1); WebsView.redraw();">' +
             SVGbtnDOWN +
             "</A> " +
-            "[ <span id=numGensInBBar>5</span> generations ]" +
-            ' <A style="cursor:pointer;" title="Increase # of generations displayed" onclick="WebsView.numGens2Display +=1; WebsView.redraw();">' +
+            "[ <span id=numGensInBBar>4</span> generations ]" +
+            ' <A style="cursor:pointer;" title="Increase # of generations displayed" onclick="WebsView.stepGens(1); WebsView.redraw();">' +
             SVGbtnUP +
             "</A> " +
             "</td>" +
@@ -1205,6 +1205,8 @@ import { Utils } from "../shared/Utils.js";
             svgNode.removeAttribute("viewBox");
             const box = g.node().getBBox();
             if (!box.width || !box.height) return;
+            const holder = svgNode.parentNode;
+            if (holder && holder.clientWidth) svgNode.setAttribute("width", holder.clientWidth);
             const frameWidth = svgNode.clientWidth || width;
             svgNode.setAttribute("height", Math.ceil(box.height * scale + 2 * MARGIN_Y));
             const tx = frameWidth / 2 - scale * (box.x + box.width / 2);
@@ -2227,8 +2229,40 @@ import { Utils } from "../shared/Utils.js";
             }
         }
 
+        WebsView.drawComboBioLabels();
         condLog("done DRAWING LINES");
         WebsView.logLines();
+    };
+
+    // In Combo view, label the lines from the Primary Person to the biological parents
+    WebsView.drawComboBioLabels = function () {
+        const svgG = document.getElementById("svgG");
+        if (!svgG) return;
+        svgG.querySelectorAll(".comboBioLabel").forEach((e) => e.remove());
+        if (WebsView.familyType != "Combo" || WebsView.viewMode != "Full") return;
+        const pp = WebsView.currentPrimeNum;
+        [
+            ["lineForPerson2p" + pp + "Pa", "Biological Father"],
+            ["lineForPerson3p" + pp + "Ma", "Biological Mother"],
+        ].forEach(([id, text]) => {
+            const line = document.getElementById(id);
+            if (!line || line.getAttribute("display") == "none") return;
+            const pts = (line.getAttribute("points") || "")
+                .trim()
+                .split(/\s+/)
+                .map((p) => p.split(",").map(Number));
+            if (pts.length < 2 || pts.some((p) => p.some(isNaN))) return;
+            const a = pts[0];
+            const b = pts[pts.length - 1];
+            const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            t.setAttribute("class", "comboBioLabel");
+            t.setAttribute("x", a[0] + (b[0] - a[0]) * 0.5);
+            t.setAttribute("y", a[1] + (b[1] - a[1]) * 0.5);
+            t.setAttribute("text-anchor", "middle");
+            t.setAttribute("style", "font-size:12px; fill:#333; paint-order:stroke; stroke:white; stroke-width:3px;");
+            t.textContent = text;
+            svgG.appendChild(t);
+        });
     };
 
     WebsView.comingSoon = function (num) {
@@ -2281,7 +2315,7 @@ import { Utils } from "../shared/Utils.js";
     function recalcAndDisplayNumGens() {
         if (WebsView.numGens2Display < 1) {
             WebsView.numGens2Display = 1;
-            showTemporaryMessageBelowButtonBar("1 is the minimum number of generations you can display.");
+            showTemporaryMessageBelowButtonBar("0 is the minimum number of generations you can display.");
         } else if (WebsView.numGens2Display > WebsView.workingMaxNumGens) {
             WebsView.numGens2Display = WebsView.workingMaxNumGens;
             if (WebsView.workingMaxNumGens < WebsView.maxNumGens) {
@@ -2290,13 +2324,14 @@ import { Utils } from "../shared/Utils.js";
                 );
             } else {
                 showTemporaryMessageBelowButtonBar(
-                    WebsView.maxNumGens + " is the maximum number of generations you can display."
+                    WebsView.internalToDisplayGens(WebsView.maxNumGens, WebsView.familyType) +
+                        " is the maximum number of generations you can display."
                 );
             }
         }
 
         var numGensSpan = document.querySelector("#numGensInBBar");
-        numGensSpan.textContent = WebsView.numGens2Display;
+        numGensSpan.textContent = WebsView.internalToDisplayGens(WebsView.numGens2Display, WebsView.familyType);
         // condLog("numGensSpan:", numGensSpan);
         if (WebsView.numGens2Display > WebsView.numGensRetrieved) {
             loadAncestorsAtLevel(WebsView.numGens2Display);
@@ -2454,8 +2489,23 @@ import { Utils } from "../shared/Utils.js";
         }
     }
 
+    // Displayed generations: 0 = Primary only; 1 = Primary + parents (Combo: + all four parents)
+    WebsView.internalToDisplayGens = function (internal, type) {
+        return internal <= 1 ? 0 : Math.max(0, internal - (type == "Combo" ? 2 : 1));
+    };
+    WebsView.displayToInternalGens = function (display, type) {
+        return display <= 0 ? 1 : display + (type == "Combo" ? 2 : 1);
+    };
+    WebsView.stepGens = function (dir) {
+        let d = WebsView.internalToDisplayGens(WebsView.numGens2Display, WebsView.familyType) + dir;
+        WebsView.numGens2Display = WebsView.displayToInternalGens(Math.max(-1, d), WebsView.familyType);
+        if (d < 0) WebsView.numGens2Display = 0;
+    };
+
     WebsView.changeFamilyType = function (newType) {
+        const shownGens = WebsView.internalToDisplayGens(WebsView.numGens2Display, WebsView.familyType);
         WebsView.familyType = newType;
+        WebsView.numGens2Display = Math.min(WebsView.displayToInternalGens(shownGens, newType), WebsView.maxNumGens);
         console.log("CHANGE THE FAMILY TYPE HERE!", newType);
         let newPersonNum = 0;
         //  if (rootPersonSelector) {
@@ -3590,7 +3640,9 @@ import { Utils } from "../shared/Utils.js";
                 if (WebsView.listOfLegitCommonAncestors.length == 0) {
                     condLog("NO COMMON ANNCESTORS for the COMMON / SINGLES !!!!");
                     document.getElementById("SummaryMessageArea").innerText =
-                        "At " + WebsView.numGens2Display + " generations, there are 0 common ancestors.";
+                        "At " +
+                        WebsView.internalToDisplayGens(WebsView.numGens2Display, WebsView.familyType) +
+                        " generations, there are 0 common ancestors.";
                     WebsView.clearAll();
                     return;
                 }
@@ -3676,7 +3728,7 @@ import { Utils } from "../shared/Utils.js";
                 const numLegitCommonAncestors = setLegitIDs.size;
                 showSummaryMessage(
                     "At " +
-                        WebsView.numGens2Display +
+                        WebsView.internalToDisplayGens(WebsView.numGens2Display, WebsView.familyType) +
                         " generations, " +
                         primaryPeopleFirstNames() +
                         " have " +
@@ -3688,7 +3740,7 @@ import { Utils } from "../shared/Utils.js";
             } else {
                 showSummaryMessage(
                     "At " +
-                        WebsView.numGens2Display +
+                        WebsView.internalToDisplayGens(WebsView.numGens2Display, WebsView.familyType) +
                         " generations, " +
                         primaryPersonFirstName() +
                         " has " +
@@ -4573,6 +4625,69 @@ import { Utils } from "../shared/Utils.js";
         return { id: -1, AhnNums: [] };
     }
 
+    // Combo layout: lay out the oldest ancestors evenly, then place each child midway between their parents
+    function centreChildrenBetweenParents(nodes) {
+        const nameSettings = WebsView.currentSettings["name_options_multiNameFormat"];
+        let multiplier = 1;
+        if (nameSettings == "FName") multiplier = 3;
+        else if (nameSettings == "FLname" || nameSettings == "FnameLname" || nameSettings == "FnameLnameLife")
+            multiplier = 4;
+        else if (nameSettings == "FML") multiplier = 1.25;
+        const gap = 190 / multiplier;
+        const byAhn = {};
+        nodes.forEach((n) => {
+            if ((n.p || 0) == WebsView.currentPrimeNum || !n.p) byAhn[n.ahnNum] = n;
+        });
+        if (!byAhn[1]) return;
+        const parentsOf = (a) => {
+            const nums = a == 1 ? [4, 5, 6, 7] : [2 * a, 2 * a + 1];
+            return nums.filter((x) => byAhn[x]);
+        };
+        let slot = 0;
+        const place = (a) => {
+            const kids = parentsOf(a);
+            if (kids.length == 0) {
+                byAhn[a].newX = gap * slot++;
+                return;
+            }
+            kids.forEach(place);
+            byAhn[a].newX = kids.reduce((t, k) => t + byAhn[k].newX, 0) / kids.length;
+        };
+        place(1);
+        const shift = byAhn[1].newX;
+        Object.values(byAhn).forEach((n) => (n.newX -= shift));
+    }
+
+    // Make sure boxes in the same generation row are not drawn on top of each other (e.g. 4 parents in Combo view)
+    function spreadCrowdedGenerations(nodes) {
+        const nameSettings = WebsView.currentSettings["name_options_multiNameFormat"];
+        let multiplier = 1;
+        if (nameSettings == "FName") multiplier = 3;
+        else if (nameSettings == "FLname" || nameSettings == "FnameLname" || nameSettings == "FnameLnameLife")
+            multiplier = 4;
+        else if (nameSettings == "FML") multiplier = 1.25;
+        const minGap = 180 / multiplier;
+        const rows = {};
+        nodes.forEach((n) => {
+            if (n.ahnNum < 1 || typeof n.newX != "number") return;
+            const key = (n.p || 0) + "_" + Math.floor(Math.log2(n.ahnNum));
+            (rows[key] = rows[key] || []).push(n);
+        });
+        Object.values(rows).forEach((row) => {
+            if (row.length < 2) return;
+            const xs = row.map((n) => n.newX).sort((a, b) => a - b);
+            let minDiff = Infinity;
+            for (let i = 1; i < xs.length; i++) {
+                if (xs[i] - xs[i - 1] > 0) minDiff = Math.min(minDiff, xs[i] - xs[i - 1]);
+            }
+            if (minDiff < minGap) {
+                const centre = (xs[0] + xs[xs.length - 1]) / 2;
+                const k = minGap / minDiff;
+                row.forEach((n) => (n.newX = centre + (n.newX - centre) * k));
+            }
+        });
+    }
+
     function calculateNodePositions(nodes) {
         condLog("BIG CALCULATIONS SHOULD GO HERE to do NODE POSITIONING PROPER", { nodes });
         for (let index = 0; index < nodes.length; index++) {
@@ -5263,7 +5378,11 @@ import { Utils } from "../shared/Utils.js";
 
             if (WebsView.listOfRepeatAncestors.length == 0) {
                 WebsView.clearAll();
-                showSummaryMessage("At " + WebsView.numGens2Display + " generations, there are 0 repeat ancestors.");
+                showSummaryMessage(
+                    "At " +
+                        WebsView.internalToDisplayGens(WebsView.numGens2Display, WebsView.familyType) +
+                        " generations, there are 0 repeat ancestors."
+                );
                 return;
             }
             let theAncestorAtTop = WebsView.listOfRepeatAncestors[WebsView.repeatAncestorNum - 1];
@@ -5693,6 +5812,14 @@ import { Utils } from "../shared/Utils.js";
                         newOrder[index][4]["newY"] = topElement[4]["newY"];
                     }
                 }
+            }
+        }
+
+        if (WebsView.viewMode == "Full") {
+            if (WebsView.familyType == "Combo") {
+                centreChildrenBetweenParents(nodes);
+            } else {
+                spreadCrowdedGenerations(nodes);
             }
         }
 
