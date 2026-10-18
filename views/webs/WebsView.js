@@ -299,6 +299,11 @@ import { Utils } from "../shared/Utils.js";
     /** Static variable to hold the y Direction variable (+1 for going downwards, -1 for going upwards) from Central person to Ancestors    **/
     WebsView.yDir = -1;
 
+    /** Path style for the Multi-Path views. The "jagged" option is retired (its Settings radio is commented out), so
+     *  the default "smooth" linear vertical path is always used. Any code that only runs for "jagged" is currently
+     *  unreachable - see the comments on the checks of WebsView.multiPathFormat. **/
+    WebsView.multiPathFormat = "smooth";
+
     /** Static variable to hold the current MODE  (Full / Unique / Repeats / Indi / MultiUnique / MultiIndi )     **/
     WebsView.viewMode = "Full";
 
@@ -730,21 +735,23 @@ import { Utils } from "../shared/Utils.js";
                     category: "path",
                     subcategory: "options",
                     options: [
-                        {
-                            optionName: "multiPathFormat",
-                            type: "radio",
-                            label: "",
-                            values: [
-                                { value: "jagged", text: "use jagged path, excerpt from Full Pedigree Tree route" },
-                                { value: "br" },
-                                { value: "smooth", text: "use smooth linear vertical path" },
-                                { value: "br" },
-                            ],
-                            defaultValue: "smooth",
-                        },
+                        // The "jagged" path option is retired for now: the smooth linear vertical path is always used
+                        // (see WebsView.multiPathFormat). Uncomment to offer the choice again.
+                        // {
+                        //     optionName: "multiPathFormat",
+                        //     type: "radio",
+                        //     label: "",
+                        //     values: [
+                        //         { value: "jagged", text: "use jagged path, excerpt from Full Pedigree Tree route" },
+                        //         { value: "br" },
+                        //         { value: "smooth", text: "use smooth linear vertical path" },
+                        //         { value: "br" },
+                        //     ],
+                        //     defaultValue: "smooth",
+                        // },
                         {
                             optionName: "sect2",
-                            comment: "Vertical positioning (SINGLE view):",
+                            comment: "Vertical positioning (SINGLE and REPEAT views):",
                             type: "br",
                         },
                         {
@@ -1982,6 +1989,23 @@ import { Utils } from "../shared/Utils.js";
                                     "fill:none;" + strokeWidthStyle + " stroke:" + theLineClr
                                 );
 
+                                // The stem should drop from the middle of the marriage line, i.e. the middle of the gap between the two boxes
+                                let stemX = (theXmultiplier * (Xpa + Xma)) / 2;
+                                if (
+                                    theNodePa &&
+                                    theNodeMa &&
+                                    isHighlightedPerson(theNodePa.person) &&
+                                    isHighlightedPerson(theNodeMa.person)
+                                ) {
+                                    const xPa = theXmultiplier * Xpa;
+                                    const xMa = theXmultiplier * Xma;
+                                    const wPa = highlightedBoxWidth(theNodePa.person, false);
+                                    const wMa = highlightedBoxWidth(theNodeMa.person, false);
+                                    stemX =
+                                        xPa < xMa
+                                            ? (xPa + wPa / 2 + (xMa - wMa / 2)) / 2
+                                            : (xMa + wMa / 2 + (xPa - wPa / 2)) / 2;
+                                }
                                 elementPa.setAttribute(
                                     "points",
                                     theXmultiplier * X +
@@ -1992,19 +2016,19 @@ import { Utils } from "../shared/Utils.js";
                                         "," +
                                         (Y - 20) +
                                         " " +
-                                        (theXmultiplier * (Xpa + Xma)) / 2 +
+                                        stemX +
                                         "," +
                                         (Y - 20) +
                                         " " +
-                                        (theXmultiplier * (Xpa + Xma)) / 2 +
+                                        stemX +
                                         "," +
                                         (Ypa + Yma) / 2
                                 );
 
                                 connectorsArray.push({
                                     genNum: genNumForDisplay,
-                                    a: Math.min(theXmultiplier * X, (theXmultiplier * (Xpa + Xma)) / 2 + 1 / 2),
-                                    b: Math.max(theXmultiplier * X, (theXmultiplier * (Xpa + Xma)) / 2 - 1 / 2),
+                                    a: Math.min(theXmultiplier * X, stemX + 1 / 2),
+                                    b: Math.max(theXmultiplier * X, stemX - 1 / 2),
                                     y1: Y,
                                     y2: (Ypa + Yma) / 2,
                                     dir: X - (Xpa + Xma) / 2,
@@ -2131,6 +2155,20 @@ import { Utils } from "../shared/Utils.js";
                                 theLineClr: theLineClr,
                             });
                         }
+                    }
+                    // Lines into the top couple's marriage line: up from the child, across, then up the marriage line (an upside-down T)
+                    if (WebsView.viewMode == "Indi" || WebsView.viewMode == "Singles") {
+                        [
+                            [elementPa, theNodePa, Xpa, Ypa],
+                            [elementMa, theNodeMa, Xma, Yma],
+                        ].forEach(([el, nd, x2, y2]) => {
+                            if (el && nd && el.isConnected && el.getAttribute("display") == "block") {
+                                if (topCoParent(nd.person)) {
+                                    const midY = y2 - WebsView.yDir * 34;
+                                    el.setAttribute("points", `${X},${Y} ${X},${midY} ${x2},${midY} ${x2},${y2}`);
+                                }
+                            }
+                        });
                     }
                     // elementMa.setAttribute("y1", Y);
                     // elementMa.setAttribute("x2", Xma);
@@ -3755,8 +3793,8 @@ import { Utils } from "../shared/Utils.js";
             }
             // Calculate the new NODE positions (skooch together / adjust if needed for repeat ancestors)
             calculateNodePositions(nodes);
-            if (WebsView.viewMode == "Indi") {
-                layoutIndiFromTop(nodes);
+            if (WebsView.viewMode == "Indi" || WebsView.viewMode == "Repeats") {
+                layoutWebColumns(nodes, WebsView.viewMode);
             }
 
             // Draw the lines connecting the new NODEs
@@ -4386,6 +4424,32 @@ import { Utils } from "../shared/Utils.js";
                     theInfoBox.parentNode.parentNode.setAttribute("width", hiWidth);
                 }
 
+                // The top ancestor of SINGLE / SINGLES is drawn with their co-parent: two boxes joined by a marriage line,
+                // centred on the node so the lines to the children leave from the middle of the marriage line
+                const holder = theInfoBox.parentNode;
+                holder.querySelectorAll(".coupleExtra").forEach((el) => el.remove());
+                holder.style.cssText = "";
+                theInfoBox.style.flex = "";
+                theInfoBox.style.width = "";
+                const coParent = topCoParent(ancestorObject.person);
+                if (coParent) {
+                    const boxW = (highlightedBoxWidth(ancestorObject.person, false) - COUPLE_GAP) / 2;
+                    holder.style.cssText = "display:flex; align-items:flex-start; width:100%;";
+                    theInfoBox.style.flex = `0 0 ${boxW}px`;
+                    theInfoBox.style.width = `${boxW}px`;
+                    const marriage = document.createElement("div");
+                    marriage.className = "coupleExtra";
+                    marriage.style.cssText = `flex:0 0 ${COUPLE_GAP}px; height:0; border-top:2px solid gray; margin-top:15px;`;
+                    const spouse = theInfoBox.cloneNode(true);
+                    spouse.removeAttribute("id");
+                    spouse.classList.add("coupleExtra");
+                    const spouseName = spouse.querySelector(".name");
+                    spouseName.removeAttribute("id");
+                    spouseName.innerHTML = `${getFirstLNAB(coParent)}<br>${lifespan(coParent)}`;
+                    holder.appendChild(marriage);
+                    holder.appendChild(spouse);
+                }
+
                 // SET the OUTER DIV to also be white, with a rounded radius and solid border
                 // theInfoBox.parentNode.setAttribute("style", "background-color: white; padding:15px; border: solid green; border-radius: 15px;") ;
             }
@@ -4768,12 +4832,15 @@ import { Utils } from "../shared/Utils.js";
         Object.values(byAhn).forEach((n) => (n.newX -= shift));
     }
 
-    // SINGLE view layout: the repeat ancestor sits at the top, rows count the steps down from them (the longest
-    // line sets the row, so a child is always below its parent), and the Primary Person is always the bottom row.
-    // Each line of descent keeps its own column, and every person who appears more than once is a single stacked box.
-    function layoutIndiFromTop(nodes) {
-        const top = WebsView.listOfRepeatAncestors[WebsView.repeatAncestorNum - 1];
-        if (!top || !top.id) return;
+    // SINGLE and REPEAT view layout (vertical and symmetrical):
+    //  - every person is one box, however many paths run through them
+    //  - SINGLE ("Indi"): the repeat ancestor is at the top and rows are counted down from them (the longest line sets
+    //    the row); REPEAT: the Primary Person is at the bottom and rows are counted up from them, so any extra space
+    //    for uneven generations ends up at the top. A child is always at least one row below their parent.
+    //  - columns: each line of descent keeps its own column; a person where lines merge is centred between their
+    //    parents, a person who splits into lines is centred over their kids, and a single-file stretch stays in line.
+    //  - vertical spacing is by generation, or by birth year (25 years per row), per the Multi-Paths setting
+    function layoutWebColumns(nodes, mode) {
         const byAhn = {};
         nodes.forEach((n) => {
             if (!n.p || n.p == WebsView.currentPrimeNum) byAhn[n.ahnNum] = n;
@@ -4783,7 +4850,8 @@ import { Utils } from "../shared/Utils.js";
         const people = {};
         Object.values(byAhn).forEach((n) => {
             const id = n.person._data.Id;
-            const frac = (n.ahnNum - 2 ** Math.floor(Math.log2(n.ahnNum)) + 0.5) / 2 ** Math.floor(Math.log2(n.ahnNum));
+            const level = Math.floor(Math.log2(n.ahnNum));
+            const frac = (n.ahnNum - 2 ** level + 0.5) / 2 ** level;
             const p = (people[id] = people[id] || { id, nodes: [], parents: new Set(), kids: new Set(), fracs: [] });
             p.nodes.push(n);
             p.fracs.push(frac);
@@ -4799,111 +4867,168 @@ import { Utils } from "../shared/Utils.js";
                 }
             });
         });
-        const topPerson = people[top.id];
+        const all = Object.values(people);
         const primary = people[byAhn[1].person._data.Id];
-        if (!topPerson || !primary) return;
-        Object.values(people).forEach((p) => (p.key = p.fracs.reduce((t, f) => t + f, 0) / p.fracs.length));
+        let topPerson = null;
+        if (mode == "Indi") {
+            const top = WebsView.listOfRepeatAncestors[WebsView.repeatAncestorNum - 1];
+            topPerson = top && top.id ? people[top.id] : null;
+            if (!topPerson) return;
+        }
+        all.forEach((p) => (p.key = p.fracs.reduce((t, f) => t + f, 0) / p.fracs.length));
 
-        // rows: the longest chain of steps down from the top ancestor
-        const rowOf = (p, seen = new Set()) => {
-            if (p === topPerson || p.row !== undefined) return p.row || 0;
+        // longest chain of steps from the top ancestor (SINGLE) / up from the Primary Person (REPEAT)
+        const memo = new Map();
+        const longest = (p, towards, seen = new Set()) => {
+            if (memo.has(p)) return memo.get(p);
             if (seen.has(p)) return 0;
             seen.add(p);
             let r = 0;
-            p.parents.forEach((pa) => (r = Math.max(r, rowOf(pa, seen) + 1)));
-            p.row = r;
+            towards(p).forEach((q) => (r = Math.max(r, longest(q, towards, seen) + 1)));
+            memo.set(p, r);
             return r;
         };
-        topPerson.row = 0;
-        Object.values(people).forEach((p) => rowOf(p));
-        let bottomRow = 0;
-        Object.values(people).forEach((p) => {
-            if (p !== primary) bottomRow = Math.max(bottomRow, p.row + 1);
-        });
-        primary.row = Math.max(bottomRow, primary.row);
+        const fromTop = (p) => longest(p, (x) => x.parents);
+        const fromBottom = (p) => longest(p, (x) => x.kids);
 
-        // columns: leaves are packed left to right, and everyone above them is centred over their kids
-        const nameSettings = WebsView.currentSettings["name_options_indiNameFormat"];
+        // H = how many rows above the Primary Person
+        const H = new Map();
+        const byBirth = WebsView.currentSettings["path_options_verticalPosition"] == "birth";
+        const yearOf = (p) => {
+            const bd = p.nodes[0].person.getBirthDate && p.nodes[0].person.getBirthDate();
+            const yr = bd ? parseInt(bd.substr(0, 4), 10) : 0;
+            return yr > 0 ? yr : null;
+        };
+        const years = all.map(yearOf).filter((y) => y);
+        if (mode == "Indi") {
+            const down = new Map();
+            if (byBirth) {
+                const baseYear = yearOf(topPerson) || (years.length ? Math.min(...years) : 0);
+                [...all]
+                    .sort((a, b) => fromTop(a) - fromTop(b))
+                    .forEach((p) => {
+                        let y = p === topPerson ? 0 : -Infinity;
+                        const yr = yearOf(p);
+                        if (yr && p !== topPerson) y = (yr - baseYear) / 25;
+                        p.parents.forEach((pa) => (y = Math.max(y, down.get(pa) + 1)));
+                        down.set(p, isFinite(y) ? y : fromTop(p));
+                    });
+            } else {
+                all.forEach((p) => down.set(p, fromTop(p)));
+            }
+            let bottom = 0;
+            all.forEach((p) => {
+                if (p !== primary) bottom = Math.max(bottom, down.get(p) + 1);
+            });
+            down.set(primary, Math.max(bottom, down.get(primary)));
+            all.forEach((p) => H.set(p, down.get(primary) - down.get(p)));
+        } else if (byBirth) {
+            const primaryYear = yearOf(primary) || (years.length ? Math.max(...years) : 0);
+            [...all]
+                .sort((a, b) => fromBottom(a) - fromBottom(b))
+                .forEach((p) => {
+                    let h = p === primary ? 0 : -Infinity;
+                    const yr = yearOf(p);
+                    if (yr && p !== primary) h = (primaryYear - yr) / 25;
+                    p.kids.forEach((k) => (h = Math.max(h, H.get(k) + 1)));
+                    H.set(p, isFinite(h) ? h : fromBottom(p));
+                });
+        } else {
+            all.forEach((p) => H.set(p, fromBottom(p)));
+        }
+
+        // box widths and slot size (REPEAT's newX is later multiplied by the Initials/Names multiplier)
         let multiplier = 1;
-        if (nameSettings == "FName") multiplier = 3;
-        else if (["FLname", "FnameLname", "FnameLnameLife"].includes(nameSettings)) multiplier = 4;
-        else if (nameSettings == "FML") multiplier = 1.25;
-        const base = multiplier >= 3 ? 5 : 8.5;
+        let widthOf;
+        if (mode == "Indi") {
+            const nameSettings = WebsView.currentSettings["name_options_indiNameFormat"];
+            if (nameSettings == "FName") multiplier = 3;
+            else if (["FLname", "FnameLname", "FnameLnameLife"].includes(nameSettings)) multiplier = 4;
+            else if (nameSettings == "FML") multiplier = 1.25;
+            const base = multiplier >= 3 ? 5 : 8.5;
+            widthOf = (p) => {
+                const n = p.nodes[0];
+                return isHighlightedPerson(n.person)
+                    ? highlightedBoxWidth(n.person, n.ahnNum == 1)
+                    : Math.min(40 * multiplier, 2 * base * longestLineLength(getNameAsPerSettings(n.person)));
+            };
+        } else {
+            const metrics = nameLayoutMetrics();
+            multiplier = metrics.multiplier;
+            widthOf = (p) => metrics.boxWidth(p.nodes[0]);
+        }
         let widest = 0;
-        Object.values(people).forEach((p) => {
-            const n = p.nodes[0];
-            const w = isHighlightedPerson(n.person)
-                ? highlightedBoxWidth(n.person, n.ahnNum == 1)
-                : Math.min(40 * multiplier, 2 * base * longestLineLength(getNameAsPerSettings(n.person)));
-            widest = Math.max(widest, w);
-        });
-        const slot = widest + 16;
+        all.forEach((p) => (widest = Math.max(widest, widthOf(p))));
+        const xScale = mode == "Indi" ? 1 : multiplier; // SINGLE's newX is drawn as-is; REPEAT's is multiplied
+        const slot = (widest + 16) / xScale;
 
+        // columns: first pass places the ends of the lines left to right, with everyone above them centred over their kids
         let nextSlot = 0;
         const claimed = new Set([primary]);
         const place = (p) => {
             claimed.add(p);
-            const kids = [...p.kids].filter((k) => !claimed.has(k)).sort((a, b) => a.key - b.key);
             const placed = [];
-            kids.forEach((k) => {
-                if (!claimed.has(k)) {
-                    place(k);
-                    placed.push(k);
-                }
-            });
+            [...p.kids]
+                .filter((k) => !claimed.has(k))
+                .sort((a, b) => a.key - b.key)
+                .forEach((k) => {
+                    if (!claimed.has(k)) {
+                        place(k);
+                        placed.push(k);
+                    }
+                });
             p.x = placed.length ? placed.reduce((t, k) => t + k.x, 0) / placed.length : slot * nextSlot++;
         };
-        place(topPerson);
-        Object.values(people).forEach((p) => {
+        all.filter((p) => p.parents.size == 0)
+            .sort((a, b) => a.key - b.key)
+            .forEach((p) => {
+                if (!claimed.has(p)) place(p);
+            });
+        all.forEach((p) => {
             if (p.x === undefined) p.x = slot * nextSlot++;
         });
-        let minX = Infinity;
-        let maxX = -Infinity;
-        Object.values(people).forEach((p) => {
-            if (p === primary) return;
-            minX = Math.min(minX, p.x);
-            maxX = Math.max(maxX, p.x);
-        });
-        const mid = isFinite(minX) ? (minX + maxX) / 2 : 0;
-
-        // vertical position, in rows above the Primary Person: by generation, or spread by birth year (25 years per row)
-        // while always keeping every child at least one row below their parent
-        const yOf = new Map();
-        if (WebsView.currentSettings["path_options_verticalPosition"] == "birth") {
-            const yearOf = (p) => {
-                const bd = p.nodes[0].person.getBirthDate && p.nodes[0].person.getBirthDate();
-                const yr = bd ? parseInt(bd.substr(0, 4), 10) : 0;
-                return yr > 0 ? yr : null;
-            };
-            const years = Object.values(people)
-                .map(yearOf)
-                .filter((y) => y);
-            const baseYear = yearOf(topPerson) || (years.length ? Math.min(...years) : 0);
-            Object.values(people)
-                .sort((a, b) => a.row - b.row)
-                .forEach((p) => {
-                    let y = p === topPerson ? 0 : -Infinity;
-                    const yr = yearOf(p);
-                    if (yr && p !== topPerson) y = (yr - baseYear) / 25;
-                    p.parents.forEach((pa) => {
-                        if (yOf.has(pa)) y = Math.max(y, yOf.get(pa) + 1);
-                    });
-                    yOf.set(p, isFinite(y) ? y : p.row);
-                });
-            let bottom = 0;
-            yOf.forEach((y, p) => {
-                if (p !== primary) bottom = Math.max(bottom, y + 1);
+        const avgX = (set) => [...set].reduce((t, q) => t + q.x, 0) / set.size;
+        const topFirst = [...all].sort((a, b) => H.get(b) - H.get(a));
+        const mergesAndStretches = () =>
+            topFirst.forEach((p) => {
+                if (p.parents.size >= 2) {
+                    p.x = avgX(p.parents);
+                } else if (p.parents.size == 1) {
+                    const pa = [...p.parents][0];
+                    if (p === primary || pa.kids.size == 1) p.x = pa.x;
+                }
             });
-            yOf.set(primary, Math.max(bottom, yOf.get(primary) || 0));
-        } else {
-            Object.values(people).forEach((p) => yOf.set(p, p.row));
-        }
-        const coParentGap = topCoParent(topPerson.nodes[0].person) ? 1 : 0; // the top box is taller when it shows a couple
+        const splits = () =>
+            [...topFirst].reverse().forEach((p) => {
+                if (p.kids.size >= 2 && p !== primary) p.x = avgX(p.kids);
+            });
+        mergesAndStretches();
+        splits();
+        mergesAndStretches();
 
-        Object.values(people).forEach((p) => {
+        // keep boxes in the same row from overlapping, nudging to the right only when needed
+        const rows = {};
+        all.forEach((p) => {
+            if (p !== primary) (rows[Math.round(H.get(p))] = rows[Math.round(H.get(p))] || []).push(p);
+        });
+        Object.values(rows).forEach((row) => {
+            row.sort((a, b) => a.x - b.x);
+            for (let i = 1; i < row.length; i++) {
+                const need = ((widthOf(row[i]) + widthOf(row[i - 1])) / 2 + 12) / xScale;
+                if (row[i].x - row[i - 1].x < need) row[i].x = row[i - 1].x + need;
+            }
+        });
+
+        all.forEach((p) => {
             p.nodes.forEach((n) => {
-                n.newX = p === primary ? 0 : p.x - mid;
-                n.newY = p === primary ? 0 : yOf.get(primary) - yOf.get(p) + (p === topPerson ? coParentGap : 0);
+                n.newX = p.x - primary.x;
+                if (p === primary) {
+                    n.newY = 0;
+                } else {
+                    const h = H.get(p);
+                    // REPEAT rows are converted back by the "1 + 2*newY - repeatsStartAtGenNum" rule used when drawing
+                    n.newY = mode == "Indi" ? h : (h - 1 + WebsView.repeatsStartAtGenNum) / 2;
+                }
             });
         });
     }
@@ -5588,7 +5713,9 @@ import { Utils } from "../shared/Utils.js";
             // condLog("Element # " + index, "newY = " + newElement[4]["newY"],thisNameAsPerSettings ,newElement[4]);
         }
 
-        if (WebsView.viewMode == "Indi" && WebsView.currentSettings["path_options_multiPathFormat"] == "smooth") {
+        // Always true while multiPathFormat is fixed at "smooth"; the "jagged" fallback simply skips this block.
+        // (SINGLE and REPEAT positions are subsequently re-laid out by layoutWebColumns.)
+        if (WebsView.viewMode == "Indi" && WebsView.multiPathFormat == "smooth") {
             condLog("SMOOTHING things out ..");
             let numsPerGen = [];
             let XsPerGen = [];
@@ -5775,7 +5902,7 @@ import { Utils } from "../shared/Utils.js";
             }
         } else if (
             (WebsView.viewMode == "Singles" || WebsView.viewMode == "Common") &&
-            WebsView.currentSettings["path_options_multiPathFormat"] == "smooth"
+            WebsView.multiPathFormat == "smooth" // always true for now - "jagged" is retired
         ) {
             let numsPerGen = [];
             let XsPerGen = [];
@@ -6037,7 +6164,7 @@ import { Utils } from "../shared/Utils.js";
 
         if (WebsView.viewMode == "Full") {
             layoutFullTree(nodes);
-        } else if (WebsView.viewMode == "Unique" || WebsView.viewMode == "Repeats") {
+        } else if (WebsView.viewMode == "Unique") {
             spreadRowsToAvoidOverlap(nodes);
         }
 
@@ -6603,8 +6730,17 @@ import { Utils } from "../shared/Utils.js";
 
     // Box width (px) needed for a highlighted person's Full Name + Lifespan
     function highlightedBoxWidth(person, isPrimary) {
-        return Math.min(240, (isPrimary ? 10 : 8.5) * longestLineLength(getNameAsPerSettings(person)) + 24);
+        const single = (p) =>
+            Math.min(240, (isPrimary ? 10 : 8.5) * longestLineLength(`${getFirstLNAB(p)}<br>${lifespan(p)}`) + 24);
+        const coParent = topCoParent(person);
+        if (coParent) {
+            // the top ancestor and their co-parent are drawn as two equal boxes joined by a marriage line
+            return 2 * Math.max(single(person), single(coParent)) + COUPLE_GAP;
+        }
+        return single(person);
     }
+
+    const COUPLE_GAP = 28; // width of the marriage line between the two boxes of the top couple
 
     // For the top Common/Repeat ancestor in SINGLE / SINGLES: the co-parent shared by all of their children in the web (or null)
     function topCoParent(person) {
@@ -6643,12 +6779,7 @@ import { Utils } from "../shared/Utils.js";
         let thisNameSetting = "";
         let thisName = "";
         if (isHighlightedPerson(person)) {
-            let html = `${getFirstLNAB(person)}<br>${lifespan(person)}`;
-            const coParent = topCoParent(person);
-            if (coParent) {
-                html += `<br>+<br>${getFirstLNAB(coParent)}<br>(${lifespan(coParent)})`;
-            }
-            return html;
+            return `${getFirstLNAB(person)}<br>${lifespan(person)}`;
         }
         if (
             WebsView.viewMode == "Full" ||
