@@ -742,6 +742,21 @@ import { Utils } from "../shared/Utils.js";
                             ],
                             defaultValue: "smooth",
                         },
+                        {
+                            optionName: "sect2",
+                            comment: "Vertical positioning (SINGLE view):",
+                            type: "br",
+                        },
+                        {
+                            optionName: "verticalPosition",
+                            type: "radio",
+                            label: "",
+                            values: [
+                                { value: "gen", text: "position vertically by generation" },
+                                { value: "birth", text: "position vertically by birth year" },
+                            ],
+                            defaultValue: "gen",
+                        },
 
                         // {
                         //     optionName: "showCouple",
@@ -3740,6 +3755,9 @@ import { Utils } from "../shared/Utils.js";
             }
             // Calculate the new NODE positions (skooch together / adjust if needed for repeat ancestors)
             calculateNodePositions(nodes);
+            if (WebsView.viewMode == "Indi") {
+                layoutIndiFromTop(nodes);
+            }
 
             // Draw the lines connecting the new NODEs
             condLog("calling drawLines from prototype.draw() ");
@@ -4748,6 +4766,146 @@ import { Utils } from "../shared/Utils.js";
         place(1);
         const shift = byAhn[1].newX;
         Object.values(byAhn).forEach((n) => (n.newX -= shift));
+    }
+
+    // SINGLE view layout: the repeat ancestor sits at the top, rows count the steps down from them (the longest
+    // line sets the row, so a child is always below its parent), and the Primary Person is always the bottom row.
+    // Each line of descent keeps its own column, and every person who appears more than once is a single stacked box.
+    function layoutIndiFromTop(nodes) {
+        const top = WebsView.listOfRepeatAncestors[WebsView.repeatAncestorNum - 1];
+        if (!top || !top.id) return;
+        const byAhn = {};
+        nodes.forEach((n) => {
+            if (!n.p || n.p == WebsView.currentPrimeNum) byAhn[n.ahnNum] = n;
+        });
+        if (!byAhn[1]) return;
+
+        const people = {};
+        Object.values(byAhn).forEach((n) => {
+            const id = n.person._data.Id;
+            const frac = (n.ahnNum - 2 ** Math.floor(Math.log2(n.ahnNum)) + 0.5) / 2 ** Math.floor(Math.log2(n.ahnNum));
+            const p = (people[id] = people[id] || { id, nodes: [], parents: new Set(), kids: new Set(), fracs: [] });
+            p.nodes.push(n);
+            p.fracs.push(frac);
+        });
+        Object.values(byAhn).forEach((n) => {
+            [2 * n.ahnNum, 2 * n.ahnNum + 1].forEach((pa) => {
+                if (!byAhn[pa]) return;
+                const parent = people[byAhn[pa].person._data.Id];
+                const child = people[n.person._data.Id];
+                if (parent !== child) {
+                    child.parents.add(parent);
+                    parent.kids.add(child);
+                }
+            });
+        });
+        const topPerson = people[top.id];
+        const primary = people[byAhn[1].person._data.Id];
+        if (!topPerson || !primary) return;
+        Object.values(people).forEach((p) => (p.key = p.fracs.reduce((t, f) => t + f, 0) / p.fracs.length));
+
+        // rows: the longest chain of steps down from the top ancestor
+        const rowOf = (p, seen = new Set()) => {
+            if (p === topPerson || p.row !== undefined) return p.row || 0;
+            if (seen.has(p)) return 0;
+            seen.add(p);
+            let r = 0;
+            p.parents.forEach((pa) => (r = Math.max(r, rowOf(pa, seen) + 1)));
+            p.row = r;
+            return r;
+        };
+        topPerson.row = 0;
+        Object.values(people).forEach((p) => rowOf(p));
+        let bottomRow = 0;
+        Object.values(people).forEach((p) => {
+            if (p !== primary) bottomRow = Math.max(bottomRow, p.row + 1);
+        });
+        primary.row = Math.max(bottomRow, primary.row);
+
+        // columns: leaves are packed left to right, and everyone above them is centred over their kids
+        const nameSettings = WebsView.currentSettings["name_options_indiNameFormat"];
+        let multiplier = 1;
+        if (nameSettings == "FName") multiplier = 3;
+        else if (["FLname", "FnameLname", "FnameLnameLife"].includes(nameSettings)) multiplier = 4;
+        else if (nameSettings == "FML") multiplier = 1.25;
+        const base = multiplier >= 3 ? 5 : 8.5;
+        let widest = 0;
+        Object.values(people).forEach((p) => {
+            const n = p.nodes[0];
+            const w = isHighlightedPerson(n.person)
+                ? highlightedBoxWidth(n.person, n.ahnNum == 1)
+                : Math.min(40 * multiplier, 2 * base * longestLineLength(getNameAsPerSettings(n.person)));
+            widest = Math.max(widest, w);
+        });
+        const slot = widest + 16;
+
+        let nextSlot = 0;
+        const claimed = new Set([primary]);
+        const place = (p) => {
+            claimed.add(p);
+            const kids = [...p.kids].filter((k) => !claimed.has(k)).sort((a, b) => a.key - b.key);
+            const placed = [];
+            kids.forEach((k) => {
+                if (!claimed.has(k)) {
+                    place(k);
+                    placed.push(k);
+                }
+            });
+            p.x = placed.length ? placed.reduce((t, k) => t + k.x, 0) / placed.length : slot * nextSlot++;
+        };
+        place(topPerson);
+        Object.values(people).forEach((p) => {
+            if (p.x === undefined) p.x = slot * nextSlot++;
+        });
+        let minX = Infinity;
+        let maxX = -Infinity;
+        Object.values(people).forEach((p) => {
+            if (p === primary) return;
+            minX = Math.min(minX, p.x);
+            maxX = Math.max(maxX, p.x);
+        });
+        const mid = isFinite(minX) ? (minX + maxX) / 2 : 0;
+
+        // vertical position, in rows above the Primary Person: by generation, or spread by birth year (25 years per row)
+        // while always keeping every child at least one row below their parent
+        const yOf = new Map();
+        if (WebsView.currentSettings["path_options_verticalPosition"] == "birth") {
+            const yearOf = (p) => {
+                const bd = p.nodes[0].person.getBirthDate && p.nodes[0].person.getBirthDate();
+                const yr = bd ? parseInt(bd.substr(0, 4), 10) : 0;
+                return yr > 0 ? yr : null;
+            };
+            const years = Object.values(people)
+                .map(yearOf)
+                .filter((y) => y);
+            const baseYear = yearOf(topPerson) || (years.length ? Math.min(...years) : 0);
+            Object.values(people)
+                .sort((a, b) => a.row - b.row)
+                .forEach((p) => {
+                    let y = p === topPerson ? 0 : -Infinity;
+                    const yr = yearOf(p);
+                    if (yr && p !== topPerson) y = (yr - baseYear) / 25;
+                    p.parents.forEach((pa) => {
+                        if (yOf.has(pa)) y = Math.max(y, yOf.get(pa) + 1);
+                    });
+                    yOf.set(p, isFinite(y) ? y : p.row);
+                });
+            let bottom = 0;
+            yOf.forEach((y, p) => {
+                if (p !== primary) bottom = Math.max(bottom, y + 1);
+            });
+            yOf.set(primary, Math.max(bottom, yOf.get(primary) || 0));
+        } else {
+            Object.values(people).forEach((p) => yOf.set(p, p.row));
+        }
+        const coParentGap = topCoParent(topPerson.nodes[0].person) ? 1 : 0; // the top box is taller when it shows a couple
+
+        Object.values(people).forEach((p) => {
+            p.nodes.forEach((n) => {
+                n.newX = p === primary ? 0 : p.x - mid;
+                n.newY = p === primary ? 0 : yOf.get(primary) - yOf.get(p) + (p === topPerson ? coParentGap : 0);
+            });
+        });
     }
 
     function calculateNodePositions(nodes) {
@@ -6448,11 +6606,49 @@ import { Utils } from "../shared/Utils.js";
         return Math.min(240, (isPrimary ? 10 : 8.5) * longestLineLength(getNameAsPerSettings(person)) + 24);
     }
 
+    // For the top Common/Repeat ancestor in SINGLE / SINGLES: the co-parent shared by all of their children in the web (or null)
+    function topCoParent(person) {
+        if (!person || !person._data) return null;
+        const id = person._data.Id;
+        let lists;
+        if (WebsView.viewMode == "Indi") {
+            const top = WebsView.listOfRepeatAncestors[WebsView.repeatAncestorNum - 1];
+            if (!top || top.id != id) return null;
+            lists = [WebsView.myAhnentafel];
+        } else if (WebsView.viewMode == "Singles") {
+            const top = WebsView.listOfLegitCommonAncestors[WebsView.commonAncestorNum - 1];
+            if (!top || top.Id != id) return null;
+            lists = WebsView.listOfAhnentafels;
+        } else {
+            return null;
+        }
+        const maxAhn = 2 ** WebsView.numGens2Display - 1;
+        const others = new Set();
+        for (const list of lists) {
+            if (!list || !list.listByPerson) continue;
+            const ahns = [].concat(list.listByPerson[id] || []);
+            for (const a of ahns) {
+                if (a < 2 || a > maxAhn) continue;
+                if (WebsView.familyType == "Combo" && a < 8) return null;
+                const otherId = list.list[a ^ 1];
+                if (!otherId || otherId == id) return null;
+                others.add(otherId);
+            }
+        }
+        if (others.size != 1) return null;
+        return thePeopleList[[...others][0]] || null;
+    }
+
     function getNameAsPerSettings(person) {
         let thisNameSetting = "";
         let thisName = "";
         if (isHighlightedPerson(person)) {
-            return `${getFirstLNAB(person)}<br>${lifespan(person)}`;
+            let html = `${getFirstLNAB(person)}<br>${lifespan(person)}`;
+            const coParent = topCoParent(person);
+            if (coParent) {
+                html += `<br>+<br>${getFirstLNAB(coParent)}<br>(${lifespan(coParent)})`;
+            }
+            return html;
         }
         if (
             WebsView.viewMode == "Full" ||
