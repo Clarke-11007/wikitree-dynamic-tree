@@ -590,6 +590,12 @@ import { Utils } from "../shared/Utils.js";
                             ],
                             defaultValue: "FML",
                         },
+                        {
+                            optionName: "showFullHighlights",
+                            label: "Show Full Name and Lifespan for Repeat / Common Ancestors",
+                            type: "checkbox",
+                            defaultValue: true,
+                        },
 
                         { optionName: "sect2", comment: "Single Ancestor Views:", type: "br" },
 
@@ -1213,17 +1219,31 @@ import { Utils } from "../shared/Utils.js";
             const ty = MARGIN_Y - scale * box.y;
             svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
         };
+        // Fit the whole diagram in the frame width, placed MARGIN_Y from the top of the container
         const fitToFrame = () => {
             svgNode.removeAttribute("viewBox");
-            svgNode.setAttribute("height", height);
             const box = g.node().getBBox();
-            const frameWidth = svgNode.clientWidth || width;
-            const frameHeight = svgNode.clientHeight || height;
             if (!box.width || !box.height) return;
-            const scale = Math.min((frameWidth * 0.95) / box.width, (frameHeight * 0.95) / box.height);
+            const holder = svgNode.parentNode;
+            if (holder && holder.clientWidth) svgNode.setAttribute("width", holder.clientWidth);
+            const frameWidth = svgNode.clientWidth || width;
+            const scale = Math.min(
+                (frameWidth * 0.95) / box.width,
+                Math.max(300, window.innerHeight - 2 * MARGIN_Y - 100) / box.height,
+                2
+            );
+            svgNode.setAttribute("height", Math.ceil(box.height * scale + 2 * MARGIN_Y));
             const tx = frameWidth / 2 - scale * (box.x + box.width / 2);
-            const ty = frameHeight / 2 - scale * (box.y + box.height / 2);
+            const ty = MARGIN_Y - scale * box.y;
             svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+            const container = document.getElementById("view-container");
+            if (container) container.scrollTop = 0;
+            // Only scroll if the top of the diagram is out of view; keep the toolbar visible above it
+            const tools = document.getElementById("webs-view-tools");
+            const rect = svgNode.getBoundingClientRect();
+            if (rect.top < 0 || rect.top > window.innerHeight - 100) {
+                (tools || svgNode).scrollIntoView({ block: "start" });
+            }
         };
         // Whenever the diagram is (re)drawn, start at 120% with the SVG tall enough to hold it
         let resizeTimer = null;
@@ -2239,7 +2259,7 @@ import { Utils } from "../shared/Utils.js";
         const svgG = document.getElementById("svgG");
         if (!svgG) return;
         svgG.querySelectorAll(".comboBioLabel").forEach((e) => e.remove());
-        if (WebsView.familyType != "Combo" || WebsView.viewMode != "Full") return;
+        if (WebsView.familyType != "Combo" || !["Full", "Unique", "Repeats"].includes(WebsView.viewMode)) return;
         const pp = WebsView.currentPrimeNum;
         [
             ["lineForPerson2p" + pp + "Pa", "Biological Father"],
@@ -3019,6 +3039,10 @@ import { Utils } from "../shared/Utils.js";
         self._load(id).then(function (person) {
             WebsView.primePerson = person;
             WebsView.listOfPrimePersons = [person._data.Id];
+            // every new load starts with the Primary/Adoptive family tree
+            WebsView.familyType = "A1";
+            const famSelect = document.getElementById("FamilyTypeSelector");
+            if (famSelect) famSelect.value = "A1";
             // condLog("WebsView.prototype.load : self._load(id) ");
             person._data.AhnNum = 1;
             thePeopleList.add(person);
@@ -3104,6 +3128,12 @@ import { Utils } from "../shared/Utils.js";
 
                 // PUT everyone into the Ahnentafel order ... which will include the private TBD! peeps if any
                 WebsView.myAhnentafel.update(person);
+
+                // Only offer the Family selector when the Primary Person has a biological parent on record
+                const primeData = WebsView.theAncestors[id] || {};
+                const hasBioParent = Number(primeData.BioFather) > 0 || Number(primeData.BioMother) > 0;
+                const famSpan = document.getElementById("FamilyTypeSelectorSpan");
+                if (famSpan) famSpan.style.display = hasBioParent ? "" : "none";
 
                 let relativeName = [
                     "kid",
@@ -3996,6 +4026,13 @@ import { Utils } from "../shared/Utils.js";
                         ).innerHTML = getFirstLNAB(ancestorObject.person);
                         ltrsNeeded = getFirstLNAB(ancestorObject.person).length;
                     }
+                    {
+                        const fullNameHtml = getNameAsPerSettings(ancestorObject.person);
+                        document.getElementById(
+                            "nameDivFor" + ancestorObject.ahnNum + "p" + ancestorObject.p
+                        ).innerHTML = fullNameHtml;
+                        ltrsNeeded = longestLineLength(fullNameHtml);
+                    }
                     let workingWidth = Math.min(150, 10 * ltrsNeeded); // PRIMARY PEOPLE need room for their FULL NAME
                     theInfoBox.parentNode.parentNode.setAttribute("x", 0 - workingWidth / 2);
                     theInfoBox.parentNode.parentNode.setAttribute("width", workingWidth);
@@ -4020,7 +4057,7 @@ import { Utils } from "../shared/Utils.js";
                         if (d._data.Id == theAncestorAtTop.id) {
                             condLog("MAKE IT RAIN !!!!!");
                             nameSettings = "FnameLname";
-                            thisNameNow = getFirstLNAB(ancestorObject.person);
+                            thisNameNow = getNameAsPerSettings(ancestorObject.person);
                             theMaxWidthPerName = 300;
                         }
                     }
@@ -4325,6 +4362,12 @@ import { Utils } from "../shared/Utils.js";
                     }
                 }
 
+                if (isHighlightedPerson(ancestorObject.person)) {
+                    const hiWidth = highlightedBoxWidth(ancestorObject.person, ancestorObject.ahnNum == 1);
+                    theInfoBox.parentNode.parentNode.setAttribute("x", 0 - hiWidth / 2);
+                    theInfoBox.parentNode.parentNode.setAttribute("width", hiWidth);
+                }
+
                 // SET the OUTER DIV to also be white, with a rounded radius and solid border
                 // theInfoBox.parentNode.setAttribute("style", "background-color: white; padding:15px; border: solid green; border-radius: 15px;") ;
             }
@@ -4625,67 +4668,86 @@ import { Utils } from "../shared/Utils.js";
         return { id: -1, AhnNums: [] };
     }
 
-    // Combo layout: lay out the oldest ancestors evenly, then place each child midway between their parents
-    function centreChildrenBetweenParents(nodes) {
+    // FULL view layout: the outermost ancestors are packed left to right using a slot width based on the
+    // widest name box for the chosen Initials/Names setting; every child is then centred between their parents.
+    // Name-box sizing used by drawNodes/drawLines for the current Initials/Names setting
+    function nameLayoutMetrics() {
         const nameSettings = WebsView.currentSettings["name_options_multiNameFormat"];
-        let multiplier = 1;
+        let multiplier = 1; // drawNodes / drawLines multiply newX by this
         if (nameSettings == "FName") multiplier = 3;
         else if (nameSettings == "FLname" || nameSettings == "FnameLname" || nameSettings == "FnameLnameLife")
             multiplier = 4;
         else if (nameSettings == "FML") multiplier = 1.25;
-        const gap = 190 / multiplier;
+        const baseWidth4Lettrs = multiplier >= 3 ? 5 : 8.5;
+        const maxBoxWidth = 40 * multiplier;
+        const boxWidth = (n) => {
+            if (isHighlightedPerson(n.person)) return highlightedBoxWidth(n.person, n.ahnNum == 1);
+            const ltrs = longestLineLength(getNameAsPerSettings(n.person));
+            return Math.min(
+                maxBoxWidth,
+                Math.max(2 * baseWidth4Lettrs * ltrs, multiplier * (baseWidth4Lettrs + 1) * ltrs + 20)
+            );
+        };
+        return { multiplier, boxWidth };
+    }
+
+    // UNIQUE / REPEAT views: widen the horizontal spacing (never narrow it) until no two boxes in a row overlap
+    function spreadRowsToAvoidOverlap(nodes) {
+        const { multiplier, boxWidth } = nameLayoutMetrics();
+        const rows = {};
+        nodes.forEach((n) => {
+            if (n.p && n.p != WebsView.currentPrimeNum) return;
+            const key =
+                n.newY && n.newY > 0 ? 1 + 2 * n.newY - WebsView.repeatsStartAtGenNum : Math.floor(Math.log2(n.ahnNum));
+            (rows[key] = rows[key] || []).push(n);
+        });
+        let scale = 1;
+        Object.values(rows).forEach((row) => {
+            row.sort((a, b) => a.newX - b.newX);
+            for (let i = 1; i < row.length; i++) {
+                const gap = (row[i].newX - row[i - 1].newX) * multiplier;
+                if (gap < 0.01) continue; // the same person repeated
+                const need = (boxWidth(row[i]) + boxWidth(row[i - 1])) / 2 + 12;
+                scale = Math.max(scale, need / gap);
+            }
+        });
+        if (scale > 1) nodes.forEach((n) => (n.newX *= scale));
+    }
+
+    // FULL view layout: the outermost ancestors are packed left to right using a slot width based on the
+    // widest name box for the chosen Initials/Names setting; every child is then centred between their parents.
+    function layoutFullTree(nodes) {
+        const { multiplier, boxWidth } = nameLayoutMetrics();
+
         const byAhn = {};
         nodes.forEach((n) => {
-            if ((n.p || 0) == WebsView.currentPrimeNum || !n.p) byAhn[n.ahnNum] = n;
+            if (!n.p || n.p == WebsView.currentPrimeNum) byAhn[n.ahnNum] = n;
         });
         if (!byAhn[1]) return;
+
+        let widest = 0;
+        Object.values(byAhn).forEach((n) => {
+            if (n.ahnNum != 1) widest = Math.max(widest, boxWidth(n));
+        });
+        const slot = (widest + 12) / multiplier;
+
         const parentsOf = (a) => {
-            const nums = a == 1 ? [4, 5, 6, 7] : [2 * a, 2 * a + 1];
+            const nums = a == 1 && WebsView.familyType == "Combo" ? [4, 5, 6, 7] : [2 * a, 2 * a + 1];
             return nums.filter((x) => byAhn[x]);
         };
-        let slot = 0;
+        let nextSlot = 0;
         const place = (a) => {
-            const kids = parentsOf(a);
-            if (kids.length == 0) {
-                byAhn[a].newX = gap * slot++;
+            const parents = parentsOf(a);
+            if (parents.length == 0) {
+                byAhn[a].newX = slot * nextSlot++;
                 return;
             }
-            kids.forEach(place);
-            byAhn[a].newX = kids.reduce((t, k) => t + byAhn[k].newX, 0) / kids.length;
+            parents.forEach(place);
+            byAhn[a].newX = parents.reduce((t, k) => t + byAhn[k].newX, 0) / parents.length;
         };
         place(1);
         const shift = byAhn[1].newX;
         Object.values(byAhn).forEach((n) => (n.newX -= shift));
-    }
-
-    // Make sure boxes in the same generation row are not drawn on top of each other (e.g. 4 parents in Combo view)
-    function spreadCrowdedGenerations(nodes) {
-        const nameSettings = WebsView.currentSettings["name_options_multiNameFormat"];
-        let multiplier = 1;
-        if (nameSettings == "FName") multiplier = 3;
-        else if (nameSettings == "FLname" || nameSettings == "FnameLname" || nameSettings == "FnameLnameLife")
-            multiplier = 4;
-        else if (nameSettings == "FML") multiplier = 1.25;
-        const minGap = 180 / multiplier;
-        const rows = {};
-        nodes.forEach((n) => {
-            if (n.ahnNum < 1 || typeof n.newX != "number") return;
-            const key = (n.p || 0) + "_" + Math.floor(Math.log2(n.ahnNum));
-            (rows[key] = rows[key] || []).push(n);
-        });
-        Object.values(rows).forEach((row) => {
-            if (row.length < 2) return;
-            const xs = row.map((n) => n.newX).sort((a, b) => a - b);
-            let minDiff = Infinity;
-            for (let i = 1; i < xs.length; i++) {
-                if (xs[i] - xs[i - 1] > 0) minDiff = Math.min(minDiff, xs[i] - xs[i - 1]);
-            }
-            if (minDiff < minGap) {
-                const centre = (xs[0] + xs[xs.length - 1]) / 2;
-                const k = minGap / minDiff;
-                row.forEach((n) => (n.newX = centre + (n.newX - centre) * k));
-            }
-        });
     }
 
     function calculateNodePositions(nodes) {
@@ -5816,11 +5878,9 @@ import { Utils } from "../shared/Utils.js";
         }
 
         if (WebsView.viewMode == "Full") {
-            if (WebsView.familyType == "Combo") {
-                centreChildrenBetweenParents(nodes);
-            } else {
-                spreadCrowdedGenerations(nodes);
-            }
+            layoutFullTree(nodes);
+        } else if (WebsView.viewMode == "Unique" || WebsView.viewMode == "Repeats") {
+            spreadRowsToAvoidOverlap(nodes);
         }
 
         condLog({ newOrder });
@@ -6359,9 +6419,41 @@ import { Utils } from "../shared/Utils.js";
     /**
      * Get the appropriate Name or set of Initials, based on the TYPE of viewMode AND the current Settings
      */
+    // Full Name + Lifespan is always used for the Primary Person(s) and for the top ancestor in the Single views;
+    // coloured (repeat / common) ancestors in the Multi-Ancestor views get it too unless turned off in Settings
+    function isHighlightedPerson(person) {
+        const mode = WebsView.viewMode;
+        if (!person || !person._data) return false;
+        const id = person._data.Id;
+        if (WebsView.listOfPrimePersons.includes(id)) return true;
+        if (mode == "Indi") {
+            const top = WebsView.listOfRepeatAncestors[WebsView.repeatAncestorNum - 1];
+            return !!top && top.id == id;
+        }
+        if (mode == "Singles") {
+            const top = WebsView.listOfLegitCommonAncestors[WebsView.commonAncestorNum - 1];
+            return !!top && top.Id == id;
+        }
+        if (!["Full", "Unique", "Repeats", "Common"].includes(mode)) return false;
+        if (WebsView.currentSettings["name_options_showFullHighlights"] === false) return false;
+        if (mode == "Common") {
+            return (WebsView.listOfLegitCommonAncestors || []).some((c) => c && c.Id == id);
+        }
+        const ahns = WebsView.myAhnentafel.listByPerson[id];
+        return !!ahns && ahns.length > 1;
+    }
+
+    // Box width (px) needed for a highlighted person's Full Name + Lifespan
+    function highlightedBoxWidth(person, isPrimary) {
+        return Math.min(240, (isPrimary ? 10 : 8.5) * longestLineLength(getNameAsPerSettings(person)) + 24);
+    }
+
     function getNameAsPerSettings(person) {
         let thisNameSetting = "";
         let thisName = "";
+        if (isHighlightedPerson(person)) {
+            return `${getFirstLNAB(person)}<br>${lifespan(person)}`;
+        }
         if (
             WebsView.viewMode == "Full" ||
             WebsView.viewMode == "Unique" ||
